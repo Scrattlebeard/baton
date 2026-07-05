@@ -122,7 +122,11 @@ python3 roll.py 2d6+1 -l "climb the shelf-face"
    it automatically when a session starts there; other runtimes: paste
    it as the session's first instruction).
 2. Found a story: copy `templates/story-skeleton/` to
-   `stories/<name>/`, `git init`, first commit.
+   `stories/<name>/`, `git init`, first commit. **Or start from an
+   example** — `examples/` ships three ready-made surfaces, one per
+   kind: `greenmarch/` (collaborative fantasy, walking-song mood),
+   `neon-tithe/` (cyberpunk crawler romp), `folio/` (litRPG rules-game
+   in a drowned library-city). See `examples/README.md`.
 3. Co-design the *surface* together — setting, tone, what the player
    starts holding. Write it to `surface.md`.
 4. **Rules-games:** the GM now works alone — writes `gm/rules.md` and
