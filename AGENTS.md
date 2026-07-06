@@ -68,6 +68,23 @@ these rules is in `README.md`; you do not need it to follow them.
 Do this at every natural pause, not only at the end — sessions can
 stop without warning, and the baton is what survives.
 
+**If the browser UI (`ui/`) is in use**, also keep a **`## Resume`**
+section in `surface.md` — a *player-safe* recap the UI shows as its
+resume ribbon. This is NOT the baton: the baton in `state.md` is written
+to you, the GM, and may be full of spoilers; the UI never reads
+`state.md` or `gm/`. Write two or three spoiler-free sentences of "where
+we are", and optionally a final `Next: ...` line for the next beat:
+
+```markdown
+## Resume
+You left the drovers' road at dusk and came down to the ford in the rain.
+Next: the miller is waiting for your answer.
+```
+
+(The UI's cast panel is a reserved placeholder for now — no convention
+to maintain yet; a player-safe scene/cast source arrives with portrait
+generation.)
+
 ## 5. Rules-game first-time setup — exact ritual, in order
 1. Read `surface.md` with the human; let them adjust it; help them
    fill in the player character in `sheet.md` and `state.md`.

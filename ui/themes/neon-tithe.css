@@ -1,0 +1,65 @@
+/* =====================================================================
+   NEON TITHE — cyberpunk crawler
+   "wet asphalt and neon: dark, saturated accents, mono/grotesk, scanline"
+   ---------------------------------------------------------------------
+   Token-only override. Commits to a dark look (no light mode).
+   ===================================================================== */
+[data-theme="neon-tithe"] {
+  color-scheme: dark;
+
+  --paper:        #0b0e14;
+  --paper-raised: #121721;
+  --paper-sunken: #080a0f;
+  --scrim:        rgba(0, 0, 0, 0.66);
+
+  --ink:       #c9d4e0;
+  --ink-soft:  #8b9bb0;
+  --ink-faint: #5a6a80;
+  --rule:      #1e2634;
+  --rule-firm: #2c3a4e;
+
+  --accent:      #ff2f8e;   /* neon magenta */
+  --accent-soft: #2de2e6;   /* neon cyan */
+  --on-accent:   #0b0e14;
+
+  --player-ink:  #2de2e6;   /* the runner types in cyan */
+  --player-mark: #ff2f8e;
+  --notary-ink:  #6a7a92;
+  --seal:        #2de2e6;
+  --live:        #39ff88;
+  --danger:      #ff5a5a;
+
+  --sel-bg:  #26314a;
+  --sel-ink: #eaf2ff;
+
+  /* grotesk / mono — the console voice */
+  --font-body: ui-sans-serif, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-display: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --heading-style: normal;
+  --heading-caps: uppercase;
+  --weight-strong: 700;
+
+  --text-base: 1.06rem;
+  --leading: 1.62;
+  --measure: 36rem;
+  --tracking-label: 0.16em;
+
+  --scene-break: "\2593\2593\2593";   /* ▓▓▓ */
+  --scene-break-scale: 0.8;
+  --radius: 0px;
+  --radius-lg: 0px;
+  --accent-underline: var(--accent-soft);
+
+  --die-face: #0b0e14;
+  --die-ink:  #2de2e6;
+  --die-edge: #2de2e6;
+
+  --elevation: 0 0 0 1px rgba(45,226,230,.08), 0 0 28px rgba(255,47,142,.10);
+
+  /* faint scanline whisper */
+  --texture:
+    repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.08) 0 1px, transparent 1px 6px);
+  --texture-blend: normal;
+}

@@ -1,0 +1,143 @@
+<!-- Baton UI — live app. Backend-driven (server.py) over Server-Sent
+     Events. One markup, reskinned from CSS tokens: a story ships its own
+     skin as ui/theme.css, loaded below as /story/theme.css. -->
+<!DOCTYPE html>
+<html lang="en" data-theme="default" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baton</title>
+<link rel="stylesheet" href="styles.css">
+<!-- the story's own skin (404s harmlessly if the story ships none) -->
+<link rel="stylesheet" href="/story/theme.css">
+</head>
+<body>
+<div class="app" data-sheet="false">
+
+  <!-- ============================ TOP BAR ============================ -->
+  <header class="topbar">
+    <span class="brand"><span class="brand__baton"></span>Baton</span>
+    <span class="topbar__story" id="story-title">…</span>
+    <span class="topbar__spacer"></span>
+
+    <div class="session" id="session" data-state="connecting" title="Session state">
+      <span class="session__dot"></span>
+      <span id="session-label">connecting…</span>
+    </div>
+
+    <button class="mode-toggle" id="width-toggle" title="Toggle full-width reading">⇔</button>
+    <button class="mode-toggle" id="mode-toggle" title="Toggle light / dark">☾</button>
+  </header>
+
+  <!-- ============================ LEFT RAIL ============================ -->
+  <!-- tabs are built at runtime, one per drawer the server announces
+       (built-ins + any ui/drawers/*.md). Cloned from #tpl-rail-tab. -->
+  <nav class="rail" id="rail" aria-label="Story files"></nav>
+
+  <!-- ============================ STREAM ============================ -->
+  <main class="stream" id="stream">
+    <div class="stream__inner">
+
+      <!-- founding banner — shown when the server scaffolded a fresh story -->
+      <aside class="resume founding" id="founding" hidden>
+        <span class="resume__ribbon"></span>
+        <div class="resume__eyebrow">Founding · new story</div>
+        <p class="resume__where" id="founding-where"></p>
+        <ol class="founding__steps">
+          <li>Co-design <b>surface.md</b> with the narrator — setting, tone, what the player starts holding</li>
+          <li>Fill in <b>sheet.md</b> — the player character</li>
+          <li>Rules-game: the GM then seals <b>gm/</b> alone; its commit hash appears in the notary below</li>
+        </ol>
+        <button class="resume__dismiss" id="founding-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
+      </aside>
+
+      <!-- resume banner — a bookmark ribbon (shown only if the story ships ## Resume) -->
+      <aside class="resume" id="resume" hidden>
+        <span class="resume__ribbon"></span>
+        <div class="resume__eyebrow">Resume · pick up the baton</div>
+        <p class="resume__where" id="resume-where"></p>
+        <p class="resume__next" id="resume-next-line" hidden>Next: <b id="resume-next"></b></p>
+        <button class="resume__dismiss" id="resume-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
+      </aside>
+
+      <!-- the story, appended in arrival order: prose / turn / roll -->
+      <div id="stream-flow"></div>
+
+    </div>
+  </main>
+
+  <!-- ============================ NOTARY ============================ -->
+  <div class="notary" id="notary" title="GM provenance — that the world reacted, and when; never what" hidden>
+    <span class="notary__glyph">🎲</span>
+    <span class="notary__text" id="notary-text"></span>
+    <span class="notary__sep">·</span>
+    <span class="seal" id="notary-seal"></span>
+    <span class="notary__time" id="notary-time"></span>
+  </div>
+
+  <!-- ============================ SIDEBAR (cast) ============================ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__inner">
+      <section class="cast">
+        <div class="panel__head"><span class="panel__title">Cast</span></div>
+        <p class="cast__empty" id="cast-empty">Cast &amp; portraits arrive later — the panel is reserved. Nobody on stage is served from <span class="u-mono">gm/</span>.</p>
+        <div class="cast__list" id="cast-list"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- ============================ COMPOSER ============================ -->
+  <div class="composer-bar">
+    <div class="resizer resizer--row" id="rz-composer" title="Drag to resize the input"></div>
+    <div class="composer" id="composer" data-disabled="false">
+      <div class="mobile-bar">
+        <span class="mobile-drawers" id="mobile-drawers"></span>
+        <button class="mobile-bar__btn" data-cast>Cast</button>
+      </div>
+      <div class="composer__chips"></div>
+      <div class="composer__field">
+        <textarea class="composer__input" id="composer-input" rows="1" placeholder="Write freely — this is your turn."></textarea>
+        <button class="composer__send" id="composer-send">Send</button>
+      </div>
+      <p class="composer__hint" id="composer-hint"></p>
+    </div>
+  </div>
+
+  <!-- ============================ PULL-OUT PANELS ============================ -->
+  <div class="pullout" id="pullout" data-open="false" data-active="sheet" data-live="false">
+    <div class="pullout__panel">
+      <header class="pullout__head">
+        <span class="pullout__title" id="pull-title">Sheet</span>
+        <span class="pullout__file" id="pull-file">sheet.md</span>
+        <span class="pullout__live" title="file changed"></span>
+        <button class="pullout__close" id="pull-close" aria-label="Close">×</button>
+      </header>
+      <!-- one pane per drawer, built at runtime from #tpl-drawer-pane -->
+      <div class="pullout__body" id="pullout-body"></div>
+    </div>
+  </div>
+  <div class="pullout-backdrop" id="pullout-backdrop"></div>
+
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+
+  <!-- resize handle on the cast panel's left edge -->
+  <div class="resizer resizer--col" id="rz-sidebar" title="Drag to resize the cast panel"></div>
+</div>
+
+<!-- ===================== DRAWER TEMPLATES (cloned per drawer) ===================== -->
+<template id="tpl-rail-tab">
+  <button class="rail__tab">
+    <span class="rail__mark"><span class="rail__letter"></span><span class="rail__live"></span></span>
+    <span class="rail__name"></span>
+  </button>
+</template>
+<template id="tpl-mobile-drawer">
+  <button class="mobile-bar__btn"><span class="mobile-bar__label"></span><span class="dot"></span></button>
+</template>
+<template id="tpl-drawer-pane">
+  <div class="pullout__doc"><div class="md"></div></div>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>

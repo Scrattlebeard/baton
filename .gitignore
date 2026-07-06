@@ -1,0 +1,7 @@
+# Baton UI runtime state — the inbox seam lives per-story and is ephemeral.
+# A story repo should never commit its inbox queue.
+.baton/
+
+# Python bytecode (server + drivers are stdlib scripts, run in place)
+__pycache__/
+*.pyc
