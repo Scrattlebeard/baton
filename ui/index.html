@@ -1,0 +1,128 @@
+<!-- Baton UI — live app. Backend-driven (server.py) over Server-Sent
+     Events. Same token contract + components as the showcase (demo.html);
+     the demo apparatus and skin switcher are gone. A story ships its own
+     skin as ui/theme.css, loaded below as /story/theme.css. -->
+<!DOCTYPE html>
+<html lang="en" data-theme="default" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baton</title>
+<link rel="stylesheet" href="styles.css">
+<!-- the story's own skin (404s harmlessly if the story ships none) -->
+<link rel="stylesheet" href="/story/theme.css">
+</head>
+<body>
+<div class="app" data-sheet="false">
+
+  <!-- ============================ TOP BAR ============================ -->
+  <header class="topbar">
+    <span class="brand"><span class="brand__baton"></span>Baton</span>
+    <span class="topbar__story" id="story-title">…</span>
+    <span class="topbar__spacer"></span>
+
+    <div class="session" id="session" data-state="connecting" title="Session state">
+      <span class="session__dot"></span>
+      <span id="session-label">connecting…</span>
+    </div>
+
+    <button class="mode-toggle" id="mode-toggle" title="Toggle light / dark">☾</button>
+  </header>
+
+  <!-- ============================ LEFT RAIL ============================ -->
+  <nav class="rail" aria-label="Story files">
+    <button class="rail__tab" data-pull="sheet" data-file="sheet.md" title="Sheet · sheet.md">
+      <span class="rail__mark">S<span class="rail__live"></span></span>
+      <span class="rail__name">Sheet</span>
+    </button>
+    <button class="rail__tab" data-pull="canon" data-file="surface.md" title="Canon · surface.md">
+      <span class="rail__mark">C<span class="rail__live"></span></span>
+      <span class="rail__name">Canon</span>
+    </button>
+    <button class="rail__tab" data-pull="map" data-file="map.md" title="Map · map.md">
+      <span class="rail__mark">M<span class="rail__live"></span></span>
+      <span class="rail__name">Map</span>
+    </button>
+  </nav>
+
+  <!-- ============================ STREAM ============================ -->
+  <main class="stream" id="stream">
+    <div class="stream__inner">
+
+      <!-- resume banner — a bookmark ribbon (shown only if the story ships ## Resume) -->
+      <aside class="resume" id="resume" hidden>
+        <span class="resume__ribbon"></span>
+        <div class="resume__eyebrow">Resume · pick up the baton</div>
+        <p class="resume__where" id="resume-where"></p>
+        <p class="resume__next" id="resume-next-line" hidden>Next: <b id="resume-next"></b></p>
+        <button class="resume__dismiss" id="resume-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
+      </aside>
+
+      <!-- the story, appended in arrival order: prose / turn / roll -->
+      <div id="stream-flow"></div>
+
+    </div>
+  </main>
+
+  <!-- ============================ NOTARY ============================ -->
+  <div class="notary" id="notary" title="GM provenance — that the world reacted, and when; never what" hidden>
+    <span class="notary__glyph">🎲</span>
+    <span class="notary__text" id="notary-text"></span>
+    <span class="notary__sep">·</span>
+    <span class="seal" id="notary-seal"></span>
+    <span class="notary__time" id="notary-time"></span>
+  </div>
+
+  <!-- ============================ SIDEBAR (cast) ============================ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar__inner">
+      <section class="cast">
+        <div class="panel__head"><span class="panel__title">Cast</span></div>
+        <p class="cast__empty" id="cast-empty">Cast &amp; portraits arrive later — the panel is reserved. Nobody on stage is served from <span class="u-mono">gm/</span>.</p>
+        <div class="cast__list" id="cast-list"></div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- ============================ COMPOSER ============================ -->
+  <div class="composer-bar">
+    <div class="composer" id="composer" data-disabled="false">
+      <div class="mobile-bar">
+        <button class="mobile-bar__btn" data-pull="sheet">Sheet<span class="dot"></span></button>
+        <button class="mobile-bar__btn" data-pull="canon">Canon</button>
+        <button class="mobile-bar__btn" data-pull="map">Map</button>
+        <button class="mobile-bar__btn" data-cast>Cast</button>
+      </div>
+      <div class="composer__chips"></div>
+      <div class="composer__field">
+        <textarea class="composer__input" id="composer-input" rows="1" placeholder="Write freely — this is your turn."></textarea>
+        <button class="composer__send" id="composer-send">Send</button>
+      </div>
+      <p class="composer__hint" id="composer-hint"></p>
+    </div>
+  </div>
+
+  <!-- ============================ PULL-OUT PANELS ============================ -->
+  <div class="pullout" id="pullout" data-open="false" data-active="sheet" data-live="false">
+    <div class="pullout__panel">
+      <header class="pullout__head">
+        <span class="pullout__title" id="pull-title">Sheet</span>
+        <span class="pullout__file" id="pull-file">sheet.md</span>
+        <span class="pullout__live" title="file changed"></span>
+        <button class="pullout__close" id="pull-close" aria-label="Close">×</button>
+      </header>
+      <div class="pullout__body">
+        <div class="pullout__doc" data-doc="sheet"><div class="md" id="drawer-sheet"></div></div>
+        <div class="pullout__doc" data-doc="canon"><div class="md" id="drawer-canon"></div></div>
+        <div class="pullout__doc" data-doc="map"><div class="md" id="drawer-map"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="pullout-backdrop" id="pullout-backdrop"></div>
+
+  <div class="sheet-backdrop" id="sheet-backdrop"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

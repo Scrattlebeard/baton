@@ -1,0 +1,63 @@
+/* =====================================================================
+   FOLIO — litRPG rules-game
+   "drowned library-city: deep teals, drowned parchment, ledger sheet"
+   ---------------------------------------------------------------------
+   Token-only override. Commits to a dark, waterlogged look.
+   ===================================================================== */
+[data-theme="folio"] {
+  color-scheme: dark;
+
+  --paper:        #0c1a1b;   /* deep teal water */
+  --paper-raised: #10262a;
+  --paper-sunken: #081315;
+  --scrim:        rgba(0, 10, 12, 0.62);
+
+  --ink:       #d9d1b6;      /* drowned parchment */
+  --ink-soft:  #9fb0a6;
+  --ink-faint: #5f7a76;
+  --rule:      #1c3a3d;
+  --rule-firm: #2a5457;
+
+  --accent:      #3fbfb0;   /* bright brackish teal */
+  --accent-soft: #b79a5e;   /* wet gilt */
+  --on-accent:   #0c1a1b;
+
+  --player-ink:  #cbb987;   /* the librarian annotates in gilt */
+  --player-mark: #3fbfb0;
+  --notary-ink:  #6f8a86;
+  --seal:        #3fbfb0;
+  --live:        #59d6b0;
+  --danger:      #e07a5f;
+
+  --sel-bg:  #17444a;
+  --sel-ink: #eef3e6;
+
+  --font-body: "Iowan Old Style", "Palatino Linotype", Palatino,
+               "Book Antiqua", Charter, Georgia, serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino,
+                  "Book Antiqua", Georgia, serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  --heading-style: normal;
+  --heading-caps: uppercase;
+
+  --text-base: 1.17rem;
+  --leading: 1.74;
+  --measure: 37rem;
+  --tracking-label: 0.1em;
+
+  --scene-break: "\2248\00a0\2248\00a0\2248";   /* ≈ ≈ ≈ waterline */
+  --scene-break-scale: 1.2;
+  --radius: 2px;
+  --radius-lg: 3px;
+
+  /* ledger-styled sheet reads as ruled paper */
+  --die-face: #10262a;
+  --die-ink:  #d9d1b6;
+  --die-edge: #2a5457;
+
+  --elevation: 0 1px 2px rgba(0,0,0,.4), 0 12px 34px rgba(0,20,22,.5);
+
+  /* still black water — colour carries the mood; no ripple overlay */
+  --texture: none;
+  --texture-blend: normal;
+}

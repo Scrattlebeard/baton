@@ -1,0 +1,61 @@
+/* =====================================================================
+   GREENMARCH — collaborative fantasy
+   "walking-song pastoral: warm paper, green and ochre, serif, woodcut"
+   ---------------------------------------------------------------------
+   A story ships this as ui/theme.css. It overrides ONLY tokens.
+   No markup, no new selectors.
+   ===================================================================== */
+[data-theme="greenmarch"] {
+  color-scheme: light;
+
+  --paper:        #ece0c4;
+  --paper-raised: #f3ead4;
+  --paper-sunken: #e2d3b0;
+  --scrim:        rgba(46, 38, 22, 0.34);
+
+  --ink:       #33301f;
+  --ink-soft:  #5a5236;
+  --ink-faint: #8c7f5c;
+  --rule:      #d3c39c;
+  --rule-firm: #b9a878;
+
+  --accent:      #566b32;   /* moss / new leaf */
+  --accent-soft: #a98b4a;   /* ochre */
+  --on-accent:   #f3ead4;
+
+  --player-ink:  #6a4a24;   /* the co-author writes in walnut ink */
+  --player-mark: #566b32;
+  --notary-ink:  #8c7f5c;
+  --seal:        #7a6a44;
+  --live:        #6b8a3a;
+  --danger:      #9a4326;
+
+  --sel-bg:  #d8c48f;
+  --sel-ink: #33301f;
+
+  --font-body: "Iowan Old Style", "Palatino Linotype", Palatino,
+               "Book Antiqua", Georgia, serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino,
+                  "Book Antiqua", Georgia, serif;
+  --heading-style: italic;
+
+  --text-base: 1.21rem;
+  --leading: 1.78;
+  --measure: 37rem;
+
+  /* woodcut flourish */
+  --scene-break: "\2766";      /* ❦ floral heart */
+  --scene-break-scale: 1.5;
+  --radius: 3px;
+  --radius-lg: 5px;
+
+  --die-face: #f3ead4;
+  --die-ink:  #33301f;
+  --die-edge: #b9a878;
+
+  /* faint laid-paper warmth */
+  --texture:
+    repeating-linear-gradient(0deg,
+      rgba(90, 74, 36, 0.035) 0 1px, transparent 1px 4px);
+  --texture-blend: multiply;
+}
