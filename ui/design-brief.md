@@ -68,9 +68,13 @@ recedes.
   design the empty/loading state plus a card shape (name, one-line
   description, portrait slot) — portraits are a later asset-gen
   feature. No data source exists yet; design the socket, not the plug.
-- **Resume banner** — Baton's namesake feature: when a session
-  resumes, a dismissible band above the stream showing where we are /
-  what's wanted next. Design it like a bookmark ribbon, not an alert.
+- **Resume banner** — a dismissible band above the stream showing where
+  we are / what's wanted next, in the spirit of Baton's namesake baton
+  handoff. Design it like a bookmark ribbon, not an alert. *Source note:*
+  it reads a **player-safe `## Resume` recap from `surface.md`**, never
+  the GM's baton in `state.md` — in a crawler or rules-game the baton is
+  written to the GM and is full of spoilers. Uniform rule: the UI never
+  derives anything from `state.md` or `gm/`.
 
 ## The core design constraint: per-story theming
 
@@ -103,7 +107,7 @@ bookish, and neutral — legible identity, no genre commitment.
 4. Notary ticker line + public dice roll display
 5. Drawer chrome: closed rail, open panel, live-update indicator
 6. Cast panel: empty state + character card
-7. Resume banner (the baton)
+7. Resume banner (player-safe recap from surface.md, not the baton)
 8. Session states: connecting, watching-for-changes, model error
 
 ## Hard constraints
