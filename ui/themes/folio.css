@@ -40,9 +40,9 @@
   --heading-style: normal;
   --heading-caps: uppercase;
 
-  --text-base: 1.17rem;
-  --leading: 1.74;
-  --measure: 37rem;
+  --text-base: 1.02rem;
+  --leading: 1.7;
+  --measure: 46rem;
   --tracking-label: 0.1em;
 
   --scene-break: "\2248\00a0\2248\00a0\2248";   /* ≈ ≈ ≈ waterline */

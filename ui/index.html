@@ -26,24 +26,14 @@
       <span id="session-label">connecting…</span>
     </div>
 
+    <button class="mode-toggle" id="width-toggle" title="Toggle full-width reading">⇔</button>
     <button class="mode-toggle" id="mode-toggle" title="Toggle light / dark">☾</button>
   </header>
 
   <!-- ============================ LEFT RAIL ============================ -->
-  <nav class="rail" aria-label="Story files">
-    <button class="rail__tab" data-pull="sheet" data-file="sheet.md" title="Sheet · sheet.md">
-      <span class="rail__mark">S<span class="rail__live"></span></span>
-      <span class="rail__name">Sheet</span>
-    </button>
-    <button class="rail__tab" data-pull="canon" data-file="surface.md" title="Canon · surface.md">
-      <span class="rail__mark">C<span class="rail__live"></span></span>
-      <span class="rail__name">Canon</span>
-    </button>
-    <button class="rail__tab" data-pull="map" data-file="map.md" title="Map · map.md">
-      <span class="rail__mark">M<span class="rail__live"></span></span>
-      <span class="rail__name">Map</span>
-    </button>
-  </nav>
+  <!-- tabs are built at runtime, one per drawer the server announces
+       (built-ins + any ui/drawers/*.md). Cloned from #tpl-rail-tab. -->
+  <nav class="rail" id="rail" aria-label="Story files"></nav>
 
   <!-- ============================ STREAM ============================ -->
   <main class="stream" id="stream">
@@ -86,11 +76,10 @@
 
   <!-- ============================ COMPOSER ============================ -->
   <div class="composer-bar">
+    <div class="resizer resizer--row" id="rz-composer" title="Drag to resize the input"></div>
     <div class="composer" id="composer" data-disabled="false">
       <div class="mobile-bar">
-        <button class="mobile-bar__btn" data-pull="sheet">Sheet<span class="dot"></span></button>
-        <button class="mobile-bar__btn" data-pull="canon">Canon</button>
-        <button class="mobile-bar__btn" data-pull="map">Map</button>
+        <span class="mobile-drawers" id="mobile-drawers"></span>
         <button class="mobile-bar__btn" data-cast>Cast</button>
       </div>
       <div class="composer__chips"></div>
@@ -111,17 +100,31 @@
         <span class="pullout__live" title="file changed"></span>
         <button class="pullout__close" id="pull-close" aria-label="Close">×</button>
       </header>
-      <div class="pullout__body">
-        <div class="pullout__doc" data-doc="sheet"><div class="md" id="drawer-sheet"></div></div>
-        <div class="pullout__doc" data-doc="canon"><div class="md" id="drawer-canon"></div></div>
-        <div class="pullout__doc" data-doc="map"><div class="md" id="drawer-map"></div></div>
-      </div>
+      <!-- one pane per drawer, built at runtime from #tpl-drawer-pane -->
+      <div class="pullout__body" id="pullout-body"></div>
     </div>
   </div>
   <div class="pullout-backdrop" id="pullout-backdrop"></div>
 
   <div class="sheet-backdrop" id="sheet-backdrop"></div>
+
+  <!-- resize handle on the cast panel's left edge -->
+  <div class="resizer resizer--col" id="rz-sidebar" title="Drag to resize the cast panel"></div>
 </div>
+
+<!-- ===================== DRAWER TEMPLATES (cloned per drawer) ===================== -->
+<template id="tpl-rail-tab">
+  <button class="rail__tab">
+    <span class="rail__mark"><span class="rail__letter"></span><span class="rail__live"></span></span>
+    <span class="rail__name"></span>
+  </button>
+</template>
+<template id="tpl-mobile-drawer">
+  <button class="mobile-bar__btn"><span class="mobile-bar__label"></span><span class="dot"></span></button>
+</template>
+<template id="tpl-drawer-pane">
+  <div class="pullout__doc"><div class="md"></div></div>
+</template>
 
 <script src="app.js"></script>
 </body>

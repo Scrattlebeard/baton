@@ -121,29 +121,62 @@ function addRoll(r) {
 }
 
 /* --------------------------------------------------------------------- *
- * Drawers
+ * Drawers — built at runtime, one per drawer the server announces. A drawer
+ * exists iff its backing file does; the DOM holds exactly the live set, so
+ * there is nothing to hide (open-ended: any ui/drawers/*.md shows up here).
  * --------------------------------------------------------------------- */
-const drawerData = { sheet: null, canon: null, map: null };
-const drawerFresh = { sheet: false, canon: false, map: false };
+const railEl = $("#rail");
+const mobileDrawersEl = $("#mobile-drawers");
+const pulloutBody = $("#pullout-body");
+const railTpl = $("#tpl-rail-tab");
+const mobileTpl = $("#tpl-mobile-drawer");
+const paneTpl = $("#tpl-drawer-pane");
 
-function setDrawer(which, markdown) {
-  drawerData[which] = markdown;
-  const el = $(`#drawer-${which}`);
-  if (which === "map" && !markdown) {
-    el.className = "slot map-slot";
-    el.textContent = "no map shipped";
-  } else {
-    el.className = "md";
-    el.innerHTML = markdown ? renderMarkdown(markdown)
-      : `<p><em>Nothing shipped in <span class="u-mono">${which === "canon" ? "surface.md" : which + ".md"}</span> yet.</em></p>`;
+// key -> { title, file, tab, mobile, pane }
+const drawers = new Map();
+
+function firstLetter(title) {
+  const c = (title || "?").trim()[0];
+  return c ? c.toUpperCase() : "?";
+}
+
+function upsertDrawer(key, title, file, markdown) {
+  if (markdown === null || markdown === undefined) { removeDrawer(key); return; }
+  let d = drawers.get(key);
+  if (!d) {
+    const tab = railTpl.content.firstElementChild.cloneNode(true);
+    tab.dataset.pull = key;
+    const mobile = mobileTpl.content.firstElementChild.cloneNode(true);
+    mobile.dataset.pull = key;
+    const pane = paneTpl.content.firstElementChild.cloneNode(true);
+    pane.dataset.doc = key;
+    railEl.appendChild(tab);
+    mobileDrawersEl.appendChild(mobile);
+    pulloutBody.appendChild(pane);
+    d = { tab, mobile, pane };
+    drawers.set(key, d);
   }
-  // freshness pip on the rail tab, cleared when opened
-  const open = pullout.getAttribute("data-open") === "true" && pullout.getAttribute("data-active") === which;
-  if (!open) {
-    drawerFresh[which] = true;
-    const tab = $(`.rail__tab[data-pull="${which}"]`);
-    if (tab) tab.setAttribute("data-live", "true");
-  }
+  d.title = title; d.file = file;
+  d.tab.querySelector(".rail__letter").textContent = firstLetter(title);
+  d.tab.querySelector(".rail__name").textContent = title;
+  d.tab.title = `${title} · ${file}`;
+  d.mobile.querySelector(".mobile-bar__label").textContent = title;
+  d.pane.querySelector(".md").innerHTML = markdown ? renderMarkdown(markdown) : `<p><em>(empty)</em></p>`;
+  // freshness pip unless this drawer is the one currently open
+  const open = pullout.getAttribute("data-open") === "true" && pullout.getAttribute("data-active") === key;
+  if (!open) d.tab.setAttribute("data-live", "true");
+}
+
+function removeDrawer(key) {
+  const d = drawers.get(key);
+  if (!d) return;
+  d.tab.remove(); d.mobile.remove(); d.pane.remove();
+  drawers.delete(key);
+  if (pullout.getAttribute("data-active") === key && pullout.getAttribute("data-open") === "true") closePull();
+}
+
+function clearDrawers() {
+  for (const key of [...drawers.keys()]) removeDrawer(key);
 }
 
 /* --------------------------------------------------------------------- *
@@ -186,6 +219,7 @@ function connect() {
   es.addEventListener("reset", () => {
     flow.innerHTML = "";
     lastKind = null;
+    clearDrawers();  // fresh snapshot rebuilds only the present drawers
   });
   es.addEventListener("meta", (e) => {
     const d = JSON.parse(e.data);
@@ -199,7 +233,7 @@ function connect() {
   es.addEventListener("roll", (e) => addRoll(JSON.parse(e.data)));
   es.addEventListener("drawer", (e) => {
     const d = JSON.parse(e.data);
-    setDrawer(d.which, d.markdown);
+    upsertDrawer(d.which, d.title, d.file, d.markdown);
   });
   es.addEventListener("resume", (e) => setResume(JSON.parse(e.data)));
   es.addEventListener("notary", (e) => setNotary(JSON.parse(e.data)));
@@ -218,6 +252,7 @@ function connect() {
 const input = $("#composer-input");
 const sendBtn = $("#composer-send");
 const hint = $("#composer-hint");
+let inputManual = false;   // true once the user drags the composer height
 
 hint.textContent = "Write freely. Enter sends, Shift+Enter for a new line.";
 
@@ -250,6 +285,7 @@ input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
 input.addEventListener("input", () => {
+  if (inputManual) return;   // hand-sized: leave it be, scroll within
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 144) + "px";
 });
@@ -258,30 +294,34 @@ input.addEventListener("input", () => {
  * Pull-out panels (rail + mobile), cast sheet, mode toggle — chrome
  * --------------------------------------------------------------------- */
 const pullout = $("#pullout");
-const DOC_FILES = { sheet: "sheet.md", canon: "surface.md", map: "map.md" };
-const DOC_TITLES = { sheet: "Sheet", canon: "Canon", map: "Map" };
 
-function openPull(doc) {
-  pullout.setAttribute("data-active", doc);
+function openPull(key) {
+  const d = drawers.get(key);
+  if (!d) return;
+  pullout.setAttribute("data-active", key);
   pullout.setAttribute("data-open", "true");
-  $("#pull-title").textContent = DOC_TITLES[doc];
-  $("#pull-file").textContent = DOC_FILES[doc];
-  $$(".rail__tab").forEach((t) => t.classList.toggle("is-active", t.dataset.pull === doc));
-  // clear freshness
-  drawerFresh[doc] = false;
-  const tab = $(`.rail__tab[data-pull="${doc}"]`);
-  if (tab) tab.setAttribute("data-live", "false");
+  $("#pull-title").textContent = d.title;
+  $("#pull-file").textContent = d.file;
+  $$(".pullout__doc").forEach((p) => p.classList.toggle("is-active", p.dataset.doc === key));
+  $$(".rail__tab").forEach((t) => t.classList.toggle("is-active", t.dataset.pull === key));
+  d.tab.setAttribute("data-live", "false");   // clear freshness pip
 }
 function closePull() {
   pullout.setAttribute("data-open", "false");
   $$(".rail__tab").forEach((t) => t.classList.remove("is-active"));
 }
-function togglePull(doc) {
+function togglePull(key) {
   const open = pullout.getAttribute("data-open") === "true";
   const active = pullout.getAttribute("data-active");
-  if (open && active === doc) closePull(); else openPull(doc);
+  if (open && active === key) closePull(); else openPull(key);
 }
-$$("[data-pull]").forEach((b) => b.addEventListener("click", () => togglePull(b.dataset.pull)));
+// event delegation — tabs are created at runtime, so bind on the containers
+[railEl, mobileDrawersEl].forEach((container) =>
+  container.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-pull]");
+    if (btn) togglePull(btn.dataset.pull);
+  })
+);
 $("#pull-close").addEventListener("click", closePull);
 $("#pullout-backdrop").addEventListener("click", closePull);
 
@@ -306,13 +346,82 @@ $("#mode-toggle").addEventListener("click", () => {
   $("#mode-toggle").textContent = mode === "dark" ? "☀" : "☾";
 });
 
+// full-width reading toggle — drop / restore the line-length cap
+const appEl = $(".app");
+const widthBtn = $("#width-toggle");
+function setWideReading(on) {
+  appEl.classList.toggle("wide-reading", on);
+  widthBtn.classList.toggle("is-on", on);
+  widthBtn.title = on ? "Cap line length (bookish)" : "Full-width reading";
+  localStorage.setItem("baton.wideReading", on ? "1" : "0");
+}
+widthBtn.addEventListener("click", () => setWideReading(!appEl.classList.contains("wide-reading")));
+setWideReading(localStorage.getItem("baton.wideReading") === "1");
+
 /* keep the pull-out anchored below the actual top bar height */
 function syncTopbarH() {
   document.documentElement.style.setProperty("--topbar-h", $(".topbar").offsetHeight + "px");
 }
 window.addEventListener("resize", syncTopbarH);
 
+/* --------------------------------------------------------------------- *
+ * Resizable boundaries — cast panel width, composer height. Drag with a
+ * pointer; the size persists in localStorage. Pure layout, no backend.
+ * --------------------------------------------------------------------- */
+const REM = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+function onDrag(handle, move) {
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("dragging");
+    appEl.classList.add("resizing");
+    const onMove = (ev) => move(ev);
+    const onUp = (ev) => {
+      handle.releasePointerCapture(e.pointerId);
+      handle.classList.remove("dragging");
+      appEl.classList.remove("resizing");
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+    };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  });
+}
+
+// cast panel: drag its left edge. Width = distance from the right edge.
+const clampW = (w) => Math.max(15 * REM, Math.min(w, Math.min(46 * REM, window.innerWidth - 22 * REM)));
+onDrag($("#rz-sidebar"), (ev) => {
+  const w = clampW(window.innerWidth - ev.clientX);
+  document.documentElement.style.setProperty("--sidebar-w", w + "px");
+  localStorage.setItem("baton.sidebarW", String(w));
+});
+
+// composer: drag its top edge upward to grow the input, downward to shrink.
+const clampH = (h) => Math.max(1.5 * REM, Math.min(h, window.innerHeight * 0.6));
+onDrag($("#rz-composer"), (ev) => {
+  const rect = input.getBoundingClientRect();
+  const h = clampH(rect.bottom - ev.clientY);
+  inputManual = true;
+  input.style.height = h + "px";
+  input.style.maxHeight = h + "px";
+  localStorage.setItem("baton.inputH", String(h));
+});
+
+// restore persisted sizes
+(function restoreSizes() {
+  const w = parseFloat(localStorage.getItem("baton.sidebarW"));
+  if (w) document.documentElement.style.setProperty("--sidebar-w", clampW(w) + "px");
+  const h = parseFloat(localStorage.getItem("baton.inputH"));
+  if (h) {
+    inputManual = true;
+    const hh = clampH(h);
+    input.style.height = hh + "px";
+    input.style.maxHeight = hh + "px";
+  }
+})();
+
 /* ------------------------------- boot ------------------------------- */
 syncTopbarH();
-setSession("connecting");
+setSession("connecting");   // drawers appear as the server announces them
 connect();

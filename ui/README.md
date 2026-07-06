@@ -143,6 +143,17 @@ of the tokens declared in `styles.css` — no markup changes. See
 `design-brief.md` for the token contract. `demo.html` is a static
 showcase that switches between all three with no server.
 
+## Drawers
+
+The rail on the left holds one tab per drawer, built at runtime from what
+exists on disk — a drawer with no backing file simply has no tab.
+
+- **Built-in:** `sheet.md` → Sheet, `surface.md` → Canon, `map.md` → Map.
+- **Open-ended:** drop any `*.md` into `<story>/ui/drawers/` and it becomes
+  a drawer, titled from its filename (`the-guild.md` → "The Guild").
+  Files appear, update, and disappear live. `gm/` and `state.md` are never
+  eligible — only the built-in files and `ui/drawers/` are exposed.
+
 ## The inbox contract (for driver authors)
 
 A driver watches `<story>/.baton/inbox/` and consumes `*.md` files:

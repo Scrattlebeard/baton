@@ -178,10 +178,34 @@ def read_resume(story_dir: Path):
     return {"where": where, "next": nxt}
 
 
-def read_drawer(story_dir: Path, which: str):
-    fname = {"sheet": "sheet.md", "canon": "surface.md", "map": "map.md"}[which]
-    f = story_dir / fname
-    return f.read_text(errors="replace") if f.exists() else None
+# Built-in drawers map fixed keys to their canonical files. Their order is
+# preserved; extra drawers (a story's ui/drawers/*.md) follow, alphabetical.
+BUILTIN_DRAWERS = [("sheet", "sheet.md", "Sheet"),
+                   ("canon", "surface.md", "Canon"),
+                   ("map", "map.md", "Map")]
+
+
+def _drawer_title(stem: str) -> str:
+    return re.sub(r"[-_]+", " ", stem).strip().title()
+
+
+def drawer_specs(story_dir: Path):
+    """All drawers this story exposes right now, as
+    (key, display-file, title, Path). A drawer exists iff its file does, so
+    the UI shows exactly what's on disk — no hide rules, no dead tabs.
+    Open-ended: drop any *.md into <story>/ui/drawers/ and it becomes a
+    drawer. gm/ and state.md are never eligible (not in this set)."""
+    specs = []
+    for key, fname, title in BUILTIN_DRAWERS:
+        p = story_dir / fname
+        if p.exists():
+            specs.append((key, fname, title, p))
+    ddir = story_dir / "ui" / "drawers"
+    if ddir.is_dir():
+        for p in sorted(ddir.glob("*.md")):
+            specs.append(("x-" + re.sub(r"[^a-z0-9]+", "-", p.stem.lower()).strip("-"),
+                          f"drawers/{p.name}", _drawer_title(p.stem), p))
+    return specs
 
 
 def read_latest_roll(story_dir: Path):
@@ -273,6 +297,7 @@ class Watcher(threading.Thread):
         self.skip_first = skip_first
         self._explicit = explicit_session
         self._mtimes: dict[str, float] = {}
+        self._drawers: dict[str, float] = {}   # drawer key -> mtime
         self._offset = 0
         self._first_scan_done = False
 
@@ -298,9 +323,9 @@ class Watcher(threading.Thread):
         resume = read_resume(self.story)
         if resume:
             events.append(("resume", resume))
-        for which in ("sheet", "canon", "map"):
-            md = read_drawer(self.story, which)
-            events.append(("drawer", {"which": which, "markdown": md}))
+        for key, file, title, p in drawer_specs(self.story):
+            events.append(("drawer", {"which": key, "title": title, "file": file,
+                                      "markdown": p.read_text(errors="replace")}))
         roll = read_latest_roll(self.story)
         if roll:
             events.append(("roll", roll))
@@ -345,16 +370,23 @@ class Watcher(threading.Thread):
 
     def _tick(self):
         self._adopt_transcript_if_needed()
-        # 1) drawers
-        for which, fname in (("sheet", "sheet.md"), ("canon", "surface.md"), ("map", "map.md")):
-            if self._changed(f"drawer:{which}", self.story / fname):
-                if self._first_scan_done:
-                    self.bus.publish("drawer", {"which": which, "markdown": read_drawer(self.story, which)})
-                    if which == "canon":
+        # 1) drawers — set diff over built-ins + ui/drawers/*.md so files that
+        #    appear, change, or vanish all propagate (added->create, gone->null).
+        cur = {key: (p.stat().st_mtime, file, title, p)
+               for key, file, title, p in drawer_specs(self.story)}
+        if self._first_scan_done:
+            for key in set(self._drawers) - set(cur):          # removed
+                self.bus.publish("drawer", {"which": key, "markdown": None})
+            for key, (m, file, title, p) in cur.items():        # added / changed
+                if self._drawers.get(key) != m:
+                    self.bus.publish("drawer", {"which": key, "title": title,
+                                                "file": file, "markdown": p.read_text(errors="replace")})
+                    if key == "canon":
                         r = read_resume(self.story)
                         if r:
                             self.bus.publish("resume", r)
                         self.bus.publish("meta", {"story": read_story_title(self.story)})
+        self._drawers = {key: v[0] for key, v in cur.items()}
         # 2) public rolls
         if self._changed("rolls", self.story / "rolls.log") and self._first_scan_done:
             roll = read_latest_roll(self.story)
