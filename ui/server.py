@@ -30,12 +30,15 @@ import json
 import os
 import queue
 import re
+import shutil
+import subprocess
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 UI_DIR = Path(__file__).resolve().parent
+SKELETON = UI_DIR.parent / "templates" / "story-skeleton"
 
 # ---------------------------------------------------------------------------
 # The membrane. Only these basenames are ever served from the story dir.
@@ -45,6 +48,36 @@ SERVED_FILES = {"surface.md", "sheet.md", "map.md", "rolls.log", "theme.css"}
 # theme.css is looked up at <story>/ui/theme.css (a story's own skin).
 
 POLL_SECONDS = 0.5
+
+
+# ===========================================================================
+# Founding — scaffold an uninitialised directory into a Baton story
+# ===========================================================================
+def is_founded(story_dir: Path) -> bool:
+    """A directory is already a story once it carries the core files."""
+    return (story_dir / "state.md").exists() or (story_dir / "surface.md").exists()
+
+
+def scaffold_story(story_dir: Path) -> bool:
+    """Turn an empty/absent directory into a fresh Baton story: copy the
+    skeleton, git init, and make the founding commit (the first precommitment
+    the fairness doctrine rests on). Best-effort on git — a story without a
+    repo still works, it just loses the timestamp proof until committed.
+    Returns True on success."""
+    if not SKELETON.is_dir():
+        print(f"  ! no skeleton at {SKELETON}; cannot scaffold")
+        return False
+    story_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(SKELETON, story_dir, dirs_exist_ok=True)
+    try:
+        if not (story_dir / ".git").exists():
+            subprocess.run(["git", "-C", str(story_dir), "init", "-q"], check=True, timeout=10)
+        subprocess.run(["git", "-C", str(story_dir), "add", "-A"], check=True, timeout=10)
+        subprocess.run(["git", "-C", str(story_dir), "commit", "-q", "-m",
+                        "Found story — scaffolded by Baton UI"], check=True, timeout=10)
+    except Exception as e:
+        print(f"  ! git founding commit skipped ({e}); scaffold is on disk, commit it manually")
+    return True
 
 
 # ===========================================================================
@@ -76,14 +109,53 @@ def _is_noise(text: str) -> bool:
     return any(m in text for m in _MARKERS)
 
 
-def parse_transcript_events(lines, skip_first_turn: bool):
-    """Yield player-safe story events from raw JSONL lines.
+# Player-safe files whose name may appear in an activity line. Everything
+# else — gm/**, state.md, arbitrary paths — is redacted to a generic verb,
+# same discipline as the notary: surface the verb, never the hidden object.
+def _safe_activity_target(path: str | None) -> str | None:
+    if not path:
+        return None
+    norm = path.replace("\\", "/")
+    base = os.path.basename(norm)
+    if "/ui/drawers/" in norm:
+        return f"the {os.path.splitext(base)[0].replace('-', ' ')} drawer"
+    return {"surface.md": "the canon", "sheet.md": "the sheet",
+            "map.md": "the map"}.get(base)  # gm/, state.md, etc. -> None
+
+
+def classify_tool_activity(name: str, tool_input: dict):
+    """Map a tool_use to a (verb, safe-target) the player may see. The verb
+    is always safe; the target is only ever a player-visible file name."""
+    name = name or ""
+    inp = tool_input if isinstance(tool_input, dict) else {}
+    if name in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+        return "writing", _safe_activity_target(inp.get("file_path") or inp.get("path"))
+    if name in ("Read", "NotebookRead"):
+        return "consulting", _safe_activity_target(inp.get("file_path"))
+    if name == "Bash":
+        cmd = inp.get("command") or ""
+        if "roll.py" in cmd:
+            return "rolling dice", None
+        if re.search(r"\bgit\b", cmd):
+            return "saving progress", None
+        return "running a command", None
+    if name in ("Grep", "Glob", "WebSearch"):
+        return "searching", None
+    if name == "WebFetch":
+        return "reading a source", None
+    return "using a tool", None
+
+
+def parse_transcript_events(lines, skip_first_turn: bool, emit_activity: bool = False):
+    """Yield player-safe events from raw JSONL lines.
 
     KEEP  : assistant `text` blocks  -> {"kind":"prose"}
             user string messages     -> {"kind":"turn"}   (the player's hand)
-    DROP  : thinking, tool_use, tool_result, system/meta, command echoes.
-            tool_result is dropped both because it isn't story text AND
-            because it is exactly where hidden gm/ content would leak.
+    DROP  : tool_result, system/meta, command echoes (tool_result is exactly
+            where hidden gm/ content would leak).
+    When emit_activity is set (live tail only, never the backlog snapshot),
+    thinking/tool_use become ephemeral {"kind":"activity"} events carrying a
+    redacted verb — the detail of what the model is doing, not its content.
     """
     seen_first_turn = False
     for line in lines:
@@ -124,11 +196,16 @@ def parse_transcript_events(lines, skip_first_turn: bool):
             for block in content:
                 if not isinstance(block, dict):
                     continue
-                if block.get("type") == "text":
+                btype = block.get("type")
+                if btype == "text":
                     text = (block.get("text") or "").strip()
                     if text and not _is_noise(text):
                         yield {"kind": "prose", "text": text}
-                # thinking / tool_use are intentionally ignored.
+                elif emit_activity and btype == "thinking":
+                    yield {"kind": "activity", "verb": "reasoning", "target": None}
+                elif emit_activity and btype == "tool_use":
+                    verb, target = classify_tool_activity(block.get("name"), block.get("input"))
+                    yield {"kind": "activity", "verb": verb, "target": target}
 
 
 # ===========================================================================
@@ -289,15 +366,18 @@ class Watcher(threading.Thread):
     daemon = True
 
     def __init__(self, story_dir: Path, transcript: Path | None, bus: Bus,
-                 skip_first: bool, explicit_session: str | None = None):
+                 skip_first: bool, explicit_session: str | None = None,
+                 founding: bool = False):
         super().__init__()
         self.story = story_dir
         self.transcript = transcript
         self.bus = bus
         self.skip_first = skip_first
         self._explicit = explicit_session
+        self.founding = founding
         self._mtimes: dict[str, float] = {}
         self._drawers: dict[str, float] = {}   # drawer key -> mtime
+        self._busy: bool | None = None
         self._offset = 0
         self._first_scan_done = False
 
@@ -320,6 +400,8 @@ class Watcher(threading.Thread):
         (otherwise the stream would double)."""
         events = [("reset", {})]
         events.append(("meta", {"story": read_story_title(self.story)}))
+        if self.founding:
+            events.append(("founding", {"active": True, "name": read_story_title(self.story)}))
         resume = read_resume(self.story)
         if resume:
             events.append(("resume", resume))
@@ -332,6 +414,9 @@ class Watcher(threading.Thread):
         notary = read_notary(self.story)
         if notary:
             events.append(("notary", notary))
+        inbox = self.story / ".baton" / "inbox"
+        if inbox.is_dir() and list(inbox.glob("*.md")):
+            events.append(("busy", {"active": True}))
         # story backlog from the transcript (filtered)
         if self.transcript and self.transcript.exists():
             lines = self.transcript.read_text(errors="replace").splitlines()
@@ -401,7 +486,15 @@ class Watcher(threading.Thread):
                 n = read_notary(self.story)
                 if n:
                     self.bus.publish("notary", n)
-        # 4) transcript tail
+        # 4) busy — a turn is in flight while the inbox holds an unconsumed
+        #    file (the driver moves it to done/ when the model finishes).
+        inbox = self.story / ".baton" / "inbox"
+        busy = bool(list(inbox.glob("*.md"))) if inbox.is_dir() else False
+        if self._busy != busy:
+            self._busy = busy
+            if self._first_scan_done:
+                self.bus.publish("busy", {"active": busy})
+        # 5) transcript tail — story prose/turns, plus redacted activity detail
         if self.transcript and self.transcript.exists():
             size = self.transcript.stat().st_size
             if size > self._offset:
@@ -414,8 +507,12 @@ class Watcher(threading.Thread):
                     consumed, chunk = chunk[: nl + 1], chunk[nl + 1:]
                     self._offset += len(consumed.encode("utf-8", "replace"))
                     if self._first_scan_done:
-                        for ev in parse_transcript_events(consumed.splitlines(), skip_first_turn=False):
-                            self.bus.publish("story", ev)
+                        for ev in parse_transcript_events(consumed.splitlines(),
+                                                          skip_first_turn=False, emit_activity=True):
+                            if ev["kind"] == "activity":
+                                self.bus.publish("activity", {"verb": ev["verb"], "target": ev["target"]})
+                            else:
+                                self.bus.publish("story", ev)
             elif size < self._offset:
                 self._offset = 0  # file rotated / new session
         self._first_scan_done = True
@@ -546,24 +643,32 @@ def main():
                     help="hide the first user message — use for INTERACTIVE sessions where it is "
                          "the GM-boot instruction, not a player turn. Leave off for driver "
                          "(claude -p) sessions, where the first user message is a real turn.")
+    ap.add_argument("--no-scaffold", action="store_true",
+                    help="do not scaffold an uninitialised directory; error instead")
     args = ap.parse_args()
 
     story = Path(args.story).resolve()
-    if not story.is_dir():
-        raise SystemExit(f"not a directory: {story}")
+    founding = False
+    if not is_founded(story):
+        if args.no_scaffold:
+            raise SystemExit(f"not a founded story: {story}")
+        print(f"Founding new story at {story} …")
+        if not scaffold_story(story):
+            raise SystemExit("could not scaffold — no skeleton available")
+        founding = True
 
     transcript = find_transcript(story, args.session)
     inbox = story / ".baton" / "inbox"
 
     bus = Bus()
     watcher = Watcher(story, transcript, bus, skip_first=args.skip_first_turn,
-                      explicit_session=args.session)
+                      explicit_session=args.session, founding=founding)
     watcher.start()
 
     handler = make_handler(story, bus, watcher, inbox)
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
 
-    print(f"Baton UI  ·  story: {story.name}")
+    print(f"Baton UI  ·  story: {story.name}{'  (FOUNDING)' if founding else ''}")
     print(f"  transcript: {transcript if transcript else '(none found — reading-only until a session writes one)'}")
     print(f"  inbox:      {inbox}")
     print(f"  serving:    http://{args.host}:{args.port}/")

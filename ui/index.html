@@ -39,6 +39,19 @@
   <main class="stream" id="stream">
     <div class="stream__inner">
 
+      <!-- founding banner — shown when the server scaffolded a fresh story -->
+      <aside class="resume founding" id="founding" hidden>
+        <span class="resume__ribbon"></span>
+        <div class="resume__eyebrow">Founding · new story</div>
+        <p class="resume__where" id="founding-where"></p>
+        <ol class="founding__steps">
+          <li>Co-design <b>surface.md</b> with the narrator — setting, tone, what the player starts holding</li>
+          <li>Fill in <b>sheet.md</b> — the player character</li>
+          <li>Rules-game: the GM then seals <b>gm/</b> alone; its commit hash appears in the notary below</li>
+        </ol>
+        <button class="resume__dismiss" id="founding-dismiss" title="Dismiss" aria-label="Dismiss">×</button>
+      </aside>
+
       <!-- resume banner — a bookmark ribbon (shown only if the story ships ## Resume) -->
       <aside class="resume" id="resume" hidden>
         <span class="resume__ribbon"></span>

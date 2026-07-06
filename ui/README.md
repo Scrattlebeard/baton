@@ -25,7 +25,8 @@ step, no dependencies. Same brand as Baton itself.
 ```
    browser (index.html + app.js)
       │  ▲
- POST │  │  Server-Sent Events  (prose, turns, rolls, drawers, notary, resume)
+ POST │  │  Server-Sent Events  (prose, turns, rolls, drawers, notary,
+/input│  │                       resume, founding, busy, activity)
 /input│  │
       ▼  │
    server.py  ── observer ──►  reads: surface.md, sheet.md, map.md,
@@ -62,10 +63,12 @@ tomorrow, without touching the server.
    rejected.
 2. **Transcript filter.** The observer tails the Claude Code session
    JSONL and forwards **only** assistant `text` blocks (narrator prose)
-   and user string messages (player turns). `thinking`, `tool_use`, and
-   `tool_result` are dropped on the floor — and `tool_result` is
-   *exactly* where a `cat gm/world.md` payload would ride. The filter
-   keys on block type, so it can't be fooled by clever content.
+   and user string messages (player turns) as story content. `thinking`,
+   `tool_use`, and `tool_result` never reach the story stream — and
+   `tool_result` is *exactly* where a `cat gm/world.md` payload would
+   ride. The filter keys on block type, so it can't be fooled by clever
+   content. (`thinking`/`tool_use` are not wasted, though — their *type*
+   becomes a redacted activity verb; see **Progress feedback**.)
 
 **The boundary, named honestly.** The filter separates *channels*
 (prose vs tool/thinking). It does **not** sanitize prose the GM chooses
@@ -81,6 +84,26 @@ newest hidden file answers *"the world reacted, and when"*, and the git
 short-hash of the latest commit touching `gm/` is the seal. The `gm/`
 file contents are never read. This is the framework's timestamp-test
 made visible in real time.
+
+## Progress feedback
+
+So a slow model never leaves the screen looking dead, two signals drive
+a live "the narrator is …" indicator — both server-side, so any driver
+lights them up identically:
+
+- **`busy`** — a turn is in flight while the inbox holds an unconsumed
+  file (the driver moves it to `done/` when the model finishes). Start
+  and stop, reliable.
+- **`activity`** — the *detail*, from the transcript's `thinking` and
+  `tool_use` blocks, redacted the same way as the notary: the **verb**
+  is surfaced, the **object** is not. `reasoning`, `rolling the dice`,
+  `writing the canon` (a player-safe file may be named) — but a write to
+  `gm/world.md` or `state.md` reads only `writing a file`. The
+  classifier *names* the allowlist and redacts everything else, so it
+  can't leak a hidden path it hasn't been told about.
+
+The browser also echoes your turn the moment you send it (faded until
+the transcript confirms it) so you never wait to see your own move.
 
 ## Resume ribbon
 
@@ -119,6 +142,17 @@ python3 ui/drivers/claude_p.py /path/to/story --permission-mode acceptEdits
 tmux new-session -s baton        # play / launch claude inside this
 python3 ui/drivers/tmux.py /path/to/story --target baton
 ```
+
+**Founding a new story.** Point the server at an empty or nonexistent
+directory and it scaffolds one: copies the skeleton, `git init`, and
+makes the founding commit (the first precommitment). The UI then shows a
+founding banner instead of the resume ribbon — co-design `surface.md`
+with the narrator, fill `sheet.md`, and for a rules-game the GM seals
+`gm/` (its hash surfaces in the notary). An already-founded directory is
+served as-is; pass `--no-scaffold` to refuse scaffolding and error
+instead. *Note:* a rules-game's sealed authoring is GM-alone by doctrine
+— do it off the player's observed channel; only the sealed hash should
+cross back.
 
 Without a driver the UI is a live **reading surface**: narrator prose,
 drawers, rolls, and notary all update; player turns queue in the inbox

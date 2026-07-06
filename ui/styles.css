@@ -505,6 +505,20 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
 }
 .resume__dismiss:hover { background: var(--paper-sunken); color: var(--ink); }
 
+/* founding banner — a variant of the ribbon for a freshly scaffolded story */
+.resume.founding { border-left-color: var(--accent-soft); }
+.founding .resume__ribbon { background: var(--accent-soft); }
+.founding__steps {
+  margin: 0.6rem 0 0;
+  padding-left: 1.3rem;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.founding__steps li { margin: 0.15rem 0; }
+.founding__steps b { color: var(--ink); font-family: var(--font-mono); font-size: 0.85em; font-weight: var(--weight-strong); }
+
 /* ---- scene heading ---- */
 .scene-heading {
   font-family: var(--font-display);
@@ -545,6 +559,32 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
   white-space: nowrap;
 }
 .turn p { margin: 0; text-wrap: pretty; }
+/* optimistic echo: faded until the transcript confirms the turn landed */
+.turn[data-pending="true"] { opacity: 0.55; }
+
+/* "the narrator is writing" indicator — feedback while a model works */
+.working {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: var(--space-4) 0;
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+.working__dots { display: inline-flex; gap: 0.3rem; }
+.working__dots i {
+  width: 0.42rem; height: 0.42rem; border-radius: 50%;
+  background: var(--accent); display: inline-block;
+  animation: workdot 1.2s ease-in-out infinite;
+}
+.working__dots i:nth-child(2) { animation-delay: 0.18s; }
+.working__dots i:nth-child(3) { animation-delay: 0.36s; }
+@keyframes workdot {
+  0%, 100% { opacity: 0.3; transform: translateY(0); }
+  50%      { opacity: 1; transform: translateY(-3px); }
+}
 
 /* ---- scene break ornament ---- */
 .scene-break {

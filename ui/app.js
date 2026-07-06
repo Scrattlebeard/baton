@@ -88,10 +88,11 @@ function addProse(text) {
   autoscroll(was);
 }
 
-function addTurn(text) {
+function addTurn(text, pending = false) {
   const was = atBottom();
   const wrap = document.createElement("div");
   wrap.className = "turn";
+  if (pending) wrap.dataset.pending = "true";   // faded until the transcript confirms it
   const hand = document.createElement("span");
   hand.className = "turn__hand";
   hand.textContent = "you";
@@ -101,6 +102,71 @@ function addTurn(text) {
   flow.appendChild(wrap);
   lastKind = "turn";
   autoscroll(was);
+  return wrap;
+}
+
+/* "the narrator is writing" — shown from Send until the response lands, so a
+ * slow model never leaves the screen looking dead. Client-side: it reflects
+ * THIS browser's send. */
+let working = false;
+let workingTimer = null;
+let currentActivity = "";        // the redacted verb-phrase, from activity events
+const pendingTurns = [];         // {text, el} awaiting transcript confirmation
+
+function activityPhrase(verb, target) {
+  if (target) return `${verb} ${target}`;
+  return {
+    reasoning: "reasoning",
+    writing: "writing a file",
+    consulting: "consulting the material",
+    "rolling dice": "rolling the dice",
+    "saving progress": "saving progress",
+    "running a command": "running a command",
+    searching: "searching",
+    "reading a source": "reading a source",
+    "using a tool": "working",
+  }[verb] || verb;
+}
+
+function renderWorkingLabel() {
+  const lbl = document.querySelector("#working-indicator .working__label");
+  if (lbl) lbl.textContent = "the narrator is " + (currentActivity || "writing");
+}
+
+function showWorking() {
+  hint.textContent = "The narrator is writing…";
+  if (!working) {
+    working = true;
+    const el = document.createElement("div");
+    el.className = "working";
+    el.id = "working-indicator";
+    el.innerHTML = `<span class="working__label"></span>` +
+      `<span class="working__dots"><i></i><i></i><i></i></span>`;
+    flow.appendChild(el);
+    stream.scrollTop = stream.scrollHeight;
+    workingTimer = setTimeout(() => {
+      const lbl = document.querySelector("#working-indicator .working__label");
+      if (lbl) lbl.textContent = "still working — a slower model can take a while";
+    }, 25000);
+  }
+  renderWorkingLabel();
+}
+
+function setActivity(verb, target) {
+  currentActivity = activityPhrase(verb, target);
+  showWorking();          // an activity implies the model is working; show + relabel
+}
+
+function clearWorking() {
+  working = false;
+  currentActivity = "";
+  if (workingTimer) { clearTimeout(workingTimer); workingTimer = null; }
+  const el = $("#working-indicator");
+  if (el) el.remove();
+  hint.textContent = "Write freely. Enter sends, Shift+Enter for a new line.";
+  // the turn finished, so any still-pending echoes have landed — un-fade them
+  // (they stay in pendingTurns so an exact-match turn event is still deduped)
+  pendingTurns.forEach((p) => p.el.removeAttribute("data-pending"));
 }
 
 function addRoll(r) {
@@ -183,6 +249,7 @@ function clearDrawers() {
  * Resume ribbon / notary / meta / session
  * --------------------------------------------------------------------- */
 let resumeDismissed = false;
+let foundingDismissed = false;
 
 function setResume(r) {
   if (resumeDismissed || !r || !r.where) { $("#resume").hidden = true; return; }
@@ -220,6 +287,14 @@ function connect() {
     flow.innerHTML = "";
     lastKind = null;
     clearDrawers();  // fresh snapshot rebuilds only the present drawers
+    if (!foundingDismissed) $("#founding").hidden = true;
+  });
+  es.addEventListener("founding", (e) => {
+    if (foundingDismissed) return;
+    const d = JSON.parse(e.data);
+    $("#founding-where").textContent =
+      `${d.name || "This story"} has been scaffolded from the skeleton. Nothing is written yet — build it together.`;
+    $("#founding").hidden = false;
   });
   es.addEventListener("meta", (e) => {
     const d = JSON.parse(e.data);
@@ -228,12 +303,26 @@ function connect() {
   es.addEventListener("story", (e) => {
     const d = JSON.parse(e.data);
     if (d.kind === "prose") addProse(d.text);
-    else if (d.kind === "turn") addTurn(d.text);
+    else if (d.kind === "turn") {
+      // if this turn matches one we optimistically echoed, just confirm it
+      const i = pendingTurns.findIndex((p) => p.text === d.text.trim());
+      if (i !== -1) { pendingTurns[i].el.removeAttribute("data-pending"); pendingTurns.splice(i, 1); }
+      else addTurn(d.text);
+    }
   });
   es.addEventListener("roll", (e) => addRoll(JSON.parse(e.data)));
   es.addEventListener("drawer", (e) => {
     const d = JSON.parse(e.data);
     upsertDrawer(d.which, d.title, d.file, d.markdown);
+  });
+  // busy = a turn is in flight (inbox non-empty); reliable start/stop
+  es.addEventListener("busy", (e) => {
+    JSON.parse(e.data).active ? showWorking() : clearWorking();
+  });
+  // activity = redacted detail of what the model is doing right now
+  es.addEventListener("activity", (e) => {
+    const d = JSON.parse(e.data);
+    setActivity(d.verb, d.target);
   });
   es.addEventListener("resume", (e) => setResume(JSON.parse(e.data)));
   es.addEventListener("notary", (e) => setNotary(JSON.parse(e.data)));
@@ -269,7 +358,9 @@ async function send() {
     if (res.ok) {
       input.value = "";
       input.style.height = "auto";
-      hint.textContent = "Delivered to the table — the narrator will pick it up.";
+      const el = addTurn(text, true);        // show your turn at once (pending)
+      pendingTurns.push({ text, el });
+      showWorking();                          // "the narrator is writing…"
     } else {
       hint.textContent = "Couldn't deliver that turn. Try again.";
     }
@@ -337,6 +428,10 @@ document.addEventListener("keydown", (e) => {
 $("#resume-dismiss").addEventListener("click", () => {
   resumeDismissed = true;
   $("#resume").hidden = true;
+});
+$("#founding-dismiss").addEventListener("click", () => {
+  foundingDismissed = true;
+  $("#founding").hidden = true;
 });
 
 let mode = "light";
