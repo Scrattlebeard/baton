@@ -408,33 +408,6 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
 }
 @keyframes blink { 50% { opacity: 0.25; } }
 
-/* skin switcher — demo apparatus, styled to sit quietly in chrome */
-.skin {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  background: var(--paper-sunken);
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  padding: 2px;
-}
-.skin__btn {
-  font-family: var(--font-ui);
-  font-size: var(--text-xs);
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
-  background: transparent;
-  border: 0;
-  padding: 0.32rem 0.7rem;
-  border-radius: 999px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.skin__btn[aria-pressed="true"] {
-  background: var(--paper-raised);
-  color: var(--ink);
-  box-shadow: var(--elevation);
-}
 .mode-toggle {
   border: 1px solid var(--rule);
   background: var(--paper);
@@ -905,43 +878,6 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
 .composer[data-disabled="true"] .composer__send { background: var(--ink-faint); }
 
 /* =====================================================================
-   DEMO APPARATUS — clearly scaffolding, not part of the app
-   ===================================================================== */
-.demo {
-  position: fixed;
-  left: calc(var(--rail-w) + var(--space-3));
-  bottom: 6.75rem;
-  z-index: 50;
-  font-family: var(--font-ui);
-  background: var(--paper-raised);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elevation);
-  padding: 0.6rem 0.75rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 15rem;
-}
-.demo__label { font-size: 0.62rem; letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--ink-faint); }
-.demo__row { display: flex; gap: 0.3rem; flex-wrap: wrap; }
-.demo__btn {
-  font-size: var(--text-xs);
-  padding: 0.28rem 0.5rem;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-  color: var(--ink-soft);
-  border-radius: var(--radius);
-  cursor: pointer;
-}
-.demo__btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
-.demo__collapse {
-  position: absolute; top: 0.35rem; right: 0.4rem;
-  border: 0; background: transparent; color: var(--ink-faint); cursor: pointer; font-size: 0.8rem;
-}
-.demo[data-collapsed="true"] .demo__body { display: none; }
-
-/* =====================================================================
    RESPONSIVE — degrade to phone: sidebar → bottom sheet, cast collapses
    ===================================================================== */
 .mobile-bar { display: none; }
@@ -1021,7 +957,6 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
     display: inline-block; width: 6px; height: 6px; border-radius: 50%;
     background: var(--live); margin-left: 0.4rem; vertical-align: middle;
   }
-  .demo { max-width: 11rem; left: auto; right: var(--space-3); bottom: 6.5rem; }
 }
 
 @media (max-width: 480px) {

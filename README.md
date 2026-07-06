@@ -141,6 +141,42 @@ python3 roll.py 2d6+1 -l "climb the shelf-face"
    natural pause — endings are not guaranteed, and the baton is what
    makes that fact not matter.
 
+## A browser UI (optional)
+
+`ui/` is a small browser front-end — a read-mostly **observer** that
+shows the player only what they may see. It turns the honor system into
+an actual membrane: `gm/**` and `state.md` are never served, and the
+model's tool calls and thinking are filtered out of the stream. Plain
+HTML/CSS/JS + one stdlib Python server; no build step, no dependencies.
+Full docs: [`ui/README.md`](ui/README.md).
+
+**Start the observer** on a story (point it at an empty or absent
+directory and it founds a new one — skeleton, `git init`, founding
+commit — then serves it):
+
+```
+python3 ui/server.py stories/<name> --port 8765
+# then open http://localhost:8765/
+```
+
+The composer drops each turn into `<story>/.baton/inbox/`; a **driver**
+turns that into model input, and the driver is where you pick the model:
+
+```
+# headless `claude -p` loop (no tmux). --model selects the model:
+python3 ui/drivers/claude_p.py stories/<name> \
+    --model claude-haiku-4-5 --permission-mode acceptEdits
+
+# …or feed turns into an interactive session in a tmux target:
+python3 ui/drivers/tmux.py stories/<name> --target baton
+```
+
+Use any model id the `claude` CLI accepts — a cheap fast one
+(`claude-haiku-4-5`) for co-design chatter, a heftier one for sealing a
+kernel. The inbox is a plain queue, so drivers are swappable and
+independent; without one running, the UI is still a live reading
+surface and turns simply wait until a driver picks them up.
+
 ## On the honor system
 
 `gm/` is hidden by agreement, not by access control — the player can

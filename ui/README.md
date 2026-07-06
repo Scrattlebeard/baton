@@ -174,8 +174,7 @@ The UI reskins entirely from CSS custom properties. A story ships
 `ui/theme.css` (served as `/story/theme.css`) that overrides any subset
 of the tokens declared in `styles.css` — no markup changes. See
 `themes/` for three worked examples (greenmarch, neon-tithe, folio) and
-`design-brief.md` for the token contract. `demo.html` is a static
-showcase that switches between all three with no server.
+`design-brief.md` for the token contract.
 
 ## Drawers
 
@@ -211,7 +210,6 @@ canonical example.
 | `index.html` + `app.js` | the live app |
 | `styles.css` | token contract + default theme + components |
 | `themes/*.css` | three example story skins (the acid test) |
-| `demo.html` + `demo.js` | static showcase, no server |
 | `drivers/claude_p.py` | inbox consumer — headless `claude -p` game loop |
 | `drivers/tmux.py` | inbox consumer — types turns into a tmux session |
 | `design-brief.md` | the design handover |
