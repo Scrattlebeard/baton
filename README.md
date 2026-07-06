@@ -8,6 +8,11 @@ no app. Built for [Claude Code](https://claude.com/claude-code) as the
 reference runtime, but the conventions work with any LLM that can read
 files and run shell commands.
 
+**If you are an AI:** read [`AGENTS.md`](AGENTS.md) — the concrete
+operating manual (the repo's `CLAUDE.md` imports it for Claude Code;
+other runtimes should load it as the session's standing instruction).
+This README is the *why*; AGENTS.md is the *do exactly this*.
+
 ## The three problems
 
 1. **Persistence** — context windows end; long stories dissolve with
