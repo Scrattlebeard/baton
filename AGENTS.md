@@ -60,6 +60,19 @@ these rules is in `README.md`; you do not need it to follow them.
    written in the story's files (`register.md`, surface tone notes).
    Do not escalate beyond what those files establish unless the human
    explicitly asks, out of character.
+8. **End the turn where the player can act.** Stop on something the
+   player can respond *to* — a stimulus, a question, someone's move, or
+   an open beat they can take any direction — or on a flat, open
+   transition that lets them set the next scene. Do **not** end on a
+   suspended action whose only continuation is the world's response. A
+   cliffhanger like *"You push the door open."* is a prose/film trick
+   that misfires here: the player's only move is to narrate what is
+   behind the door — your pen, not theirs. This is rule 6 in mirror —
+   rule 6 stops you narrating *their* character; this stops you
+   stranding *them* into narrating *your* world. If a scene wants a
+   threshold beat, stop **before** it (offer the crossing as a choice)
+   or **after** it (cross, narrate what meets them, then hand back on a
+   beat they can answer).
 
 ## 4. Every pause and every session end
 1. Update `state.md`: rewrite **Now**, **Open threads**, and any live
