@@ -176,6 +176,27 @@ sessions open with a GM-boot instruction on the user channel that isn't
 a player turn — pass `--skip-first-turn` to hide it. Driver (`claude -p`)
 sessions open with a *real* player turn, so leave the flag off.
 
+**Continuity, and re-founding (the sawtooth).** The `claude_p.py`
+driver's durable continuity is *not* the session id — it's the story on
+disk: the baton in `state.md`, the `gm/` reference tier, and a short
+verbatim tail the driver keeps in `.baton/recent.md` (the last two
+exchanges, prose only, filtered exactly like the observer, so it carries
+no thinking/tool blocks and stays model-portable). The warm
+`claude -p --resume` session is only a cache on top of that. Two
+consequences:
+
+- **Auto-resume.** Restart the driver with no `--resume` and it reads
+  `.baton/session` and continues the pinned session automatically — a
+  lost session id is a no-op, not data loss.
+- **`--refound`.** Ignore any warm session, start fresh, and inject the
+  verbatim tail on the first turn (OOC-framed) so the new session
+  re-founds from baton + `gm/` + tail with the voice intact. Use it to
+  bound a days-long story's context before it balloons, or to switch
+  models cleanly (a fresh session avoids replaying one model's thinking
+  blocks into another). The reset is only as lossless as the baton is
+  kept rich — which is the maintenance discipline AGENTS.md §4 already
+  requires.
+
 ## Permissions — a headless GM needs its tool use
 
 The `claude -p` driver runs with nobody at the keyboard, so every tool
