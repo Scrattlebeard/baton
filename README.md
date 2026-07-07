@@ -173,9 +173,13 @@ python3 ui/drivers/tmux.py stories/<name> --target baton
 
 Use any model id the `claude` CLI accepts — a cheap fast one
 (`claude-haiku-4-5`) for co-design chatter, a heftier one for sealing a
-kernel. The inbox is a plain queue, so drivers are swappable and
-independent; without one running, the UI is still a live reading
-surface and turns simply wait until a driver picks them up.
+kernel, or the million-token-context variant `claude-opus-4-8[1m]` (the
+`[1m]` bracket suffix selects the long-context build) for a story meant
+to run for days. A headless driver also needs the GM's tool use
+pre-authorized — see [`ui/README.md`](ui/README.md) § Permissions. The
+inbox is a plain queue, so drivers are swappable and independent;
+without one running, the UI is still a live reading surface and turns
+simply wait until a driver picks them up.
 
 ## On the honor system
 

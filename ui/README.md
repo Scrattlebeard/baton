@@ -137,6 +137,9 @@ python3 ui/server.py /path/to/story --port 8765
 #    (a) claude -p — no tmux; the driver IS the game loop:
 python3 ui/drivers/claude_p.py /path/to/story --permission-mode acceptEdits
 #        it prints the session id + transcript path it pinned.
+#        pick the model with --model (e.g. claude-opus-4-8[1m] for the
+#        1M-context build); a headless GM needs its tool use allowed —
+#        see § Permissions below.
 
 #    (b) tmux — types turns into a running interactive session:
 tmux new-session -s baton        # play / launch claude inside this
@@ -167,6 +170,42 @@ order between server and driver doesn't matter). Override with
 sessions open with a GM-boot instruction on the user channel that isn't
 a player turn — pass `--skip-first-turn` to hide it. Driver (`claude -p`)
 sessions open with a *real* player turn, so leave the flag off.
+
+## Permissions — a headless GM needs its tool use
+
+The `claude -p` driver runs with nobody at the keyboard, so every tool
+call must be pre-authorized — and a GM does real tool work every turn:
+it reads `gm/`, rolls with `roll.py`, edits `rulings.md` / `state.md`,
+and commits. **`--permission-mode acceptEdits` covers the file writes
+but not `Bash`**, so `roll.py` and `git commit` get denied with no one
+to approve them — the GM silently can't roll or seal. Two ways to close
+the gap:
+
+- **Least-privilege (recommended).** Keep `acceptEdits` and drop a
+  story-local `.claude/settings.local.json` allowing only the Bash the
+  GM actually needs:
+
+  ```json
+  {
+    "permissions": {
+      "allow": [
+        "Bash(python3 roll.py:*)",
+        "Bash(git add:*)", "Bash(git commit:*)", "Bash(git status:*)",
+        "Bash(git log:*)", "Bash(git diff:*)", "Bash(git show:*)",
+        "Bash(git rev-parse:*)"
+      ]
+    }
+  }
+  ```
+
+  Dice and commits work; arbitrary shell stays gated.
+
+- **Fully trusted local loop.** `--permission-mode bypassPermissions`
+  drops the gate entirely — simpler and broader, for when you trust the
+  loop end to end.
+
+The `tmux` driver needs none of this: it types into an interactive
+session where you answer permission prompts yourself.
 
 ## Theming — one story, one skin
 
