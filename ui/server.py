@@ -90,10 +90,28 @@ def project_slug(story_dir: Path) -> str:
     return re.sub(r"[^a-zA-Z0-9]", "-", str(story_dir.resolve()))
 
 
+def read_session_pointer(story_dir: Path) -> Path | None:
+    """A driver may pin its session by writing the transcript path to
+    `<story>/.baton/session`. That pointer is authoritative over mtime
+    guessing — it names the session the game is actually running in, even
+    when older transcripts exist (a live story always has one)."""
+    ptr = story_dir / ".baton" / "session"
+    if not ptr.is_file():
+        return None
+    raw = ptr.read_text(errors="replace").strip()
+    if not raw:
+        return None
+    p = Path(raw)
+    return p if p.exists() else None
+
+
 def find_transcript(story_dir: Path, explicit: str | None) -> Path | None:
     if explicit:
         p = Path(explicit)
         return p if p.exists() else None
+    pinned = read_session_pointer(story_dir)   # driver-pinned wins over mtime
+    if pinned:
+        return pinned
     proj = Path.home() / ".claude" / "projects" / project_slug(story_dir)
     if not proj.is_dir():
         return None
@@ -436,25 +454,46 @@ class Watcher(threading.Thread):
                 self.bus.publish("session", {"state": "error", "detail": str(e)})
             time.sleep(POLL_SECONDS)
 
-    def _adopt_transcript_if_needed(self):
-        """If we have no transcript yet (observer started before any session
-        existed — e.g. before a driver's first turn), keep looking. Once one
-        appears, adopt it and replay its backlog to connected clients. Only
-        fires while transcript is None, so it never switches mid-session."""
-        if self.transcript and self.transcript.exists():
-            return
-        found = find_transcript(self.story, self._explicit)
-        if not found:
-            return
+    def _adopt(self, found: Path):
+        """Point at `found` and prime the tail offset to its end. If clients
+        are already connected (past the first scan), re-sync them with a full
+        snapshot — a leading `reset` clears the stale session before the new
+        backlog replays, so prose never doubles."""
         self.transcript = found
         if self._first_scan_done:
-            lines = found.read_text(errors="replace").splitlines()
-            for ev in parse_transcript_events(lines, self.skip_first):
-                self.bus.publish("story", ev)
-        self._offset = found.stat().st_size
+            for event, data in self.snapshot():
+                self.bus.publish(event, data)
+        self._offset = found.stat().st_size if found.exists() else 0
+
+    def _sync_transcript(self):
+        """Resolve which transcript to tail, and switch if it changed.
+
+        - `--session` is authoritative and fixed: adopt it once it exists.
+        - Otherwise a driver's `.baton/session` pointer wins: adopt it, and
+          *switch* to it if it later names a different file than we're on
+          (a live story already has an older transcript at startup, so the
+          observer must be able to follow the driver's fresh session).
+        - With no pointer we adopt the newest transcript once, then never
+          switch on mtime alone — that would flap between concurrent runs."""
+        if self._explicit:
+            if self.transcript is None:
+                found = find_transcript(self.story, self._explicit)
+                if found:
+                    self._adopt(found)
+            return
+        desired = find_transcript(self.story, None)
+        if not desired:
+            return
+        if self.transcript is None:
+            self._adopt(desired)
+            return
+        # Only a driver pointer justifies a mid-session switch.
+        if (read_session_pointer(self.story)
+                and desired.resolve() != self.transcript.resolve()):
+            self._adopt(desired)
 
     def _tick(self):
-        self._adopt_transcript_if_needed()
+        self._sync_transcript()
         # 1) drawers — set diff over built-ins + ui/drawers/*.md so files that
         #    appear, change, or vanish all propagate (added->create, gone->null).
         cur = {key: (p.stat().st_mtime, file, title, p)

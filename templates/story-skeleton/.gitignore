@@ -1,0 +1,3 @@
+# Baton UI runtime state — the inbox seam and the driver's session
+# pointer are ephemeral, never committed.
+.baton/

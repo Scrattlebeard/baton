@@ -112,12 +112,22 @@ def main() -> None:
             new_sid = result.get("session_id")
             if new_sid:
                 sid = new_sid
-            if not printed_session and sid:
+            if sid:
+                # Pin the session for the observer: write the transcript path
+                # to <story>/.baton/session. The observer prefers this pointer
+                # over mtime-guessing, so it follows *this* session even when
+                # older transcripts exist — start order stops mattering.
                 tpath = Path.home() / ".claude" / "projects" / project_slug() / f"{sid}.jsonl"
-                print(f"    session pinned: {sid}")
-                print(f"    transcript:     {tpath}")
-                print(f"    → point the observer at it:  python3 server.py {story} --session {tpath}")
-                printed_session = True
+                ptr = story / ".baton" / "session"
+                want = f"{tpath}\n"
+                if not ptr.exists() or ptr.read_text(errors="replace") != want:
+                    ptr.write_text(want)
+                if not printed_session:
+                    print(f"    session pinned: {sid}")
+                    print(f"    transcript:     {tpath}")
+                    print(f"    → observer auto-adopts it via {ptr}")
+                    print(f"      (or pin explicitly: python3 server.py {story} --session {tpath})")
+                    printed_session = True
             snippet = (result.get("result") or "").strip().replace("\n", " ")
             print(f"    ✓ narrator replied ({len(snippet)} chars): {snippet[:70]!r}")
             p.rename(done / p.name)

@@ -161,10 +161,15 @@ Without a driver the UI is a live **reading surface**: narrator prose,
 drawers, rolls, and notary all update; player turns queue in the inbox
 until a driver picks them up. That degraded mode is useful on its own.
 
-The server auto-discovers the newest session transcript for the story's
-directory (and adopts one late if it appears after startup — so start
-order between server and driver doesn't matter). Override with
-`--session /path/to/uuid.jsonl` to pin a specific one.
+**Which transcript the observer follows.** In priority order: an
+explicit `--session /path/to/uuid.jsonl`; else a driver-written pointer
+at `<story>/.baton/session`; else the newest transcript by mtime. The
+`claude_p.py` driver writes that pointer when it pins its session, so
+the observer follows *that* session even on a **live** story where older
+transcripts already exist — and it switches to it the moment the pointer
+appears, so start order between server and driver genuinely doesn't
+matter. (Without a pointer the observer adopts the newest once and then
+won't switch on mtime alone — that would flap between concurrent runs.)
 
 **First-turn handling.** By default every message is shown. Interactive
 sessions open with a GM-boot instruction on the user channel that isn't
@@ -237,6 +242,12 @@ A driver watches `<story>/.baton/inbox/` and consumes `*.md` files:
 - Feed the text to your model however you like; its output lands in the
   session transcript, which the observer already streams to the
   browser. A driver never talks to the server.
+- *Optional but recommended:* write your session's transcript path to
+  `<story>/.baton/session`. The observer prefers that pointer over
+  mtime-guessing, so it follows your session even when older transcripts
+  exist (see "Which transcript the observer follows"). `claude_p.py`
+  does this; `tmux.py` doesn't (an interactive session is already the
+  newest transcript, so mtime suffices).
 
 That's the whole interface. `drivers/tmux.py` is ~90 lines and is the
 canonical example.
