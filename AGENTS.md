@@ -65,7 +65,12 @@ these rules is in `README.md`; you do not need it to follow them.
 1. Update `state.md`: rewrite **Now**, **Open threads**, and any live
    **Cast** shortlist so they are true. Rewrite **Baton** as a note to
    the next AI: where the story stands, what happens next, what mood to
-   keep.
+   keep. Make it *true*, not merely present: a re-founded session (a
+   fresh session started from the baton — see the driver's `--refound`)
+   treats the baton as authoritative, so a **stale** line — an
+   instruction for something that has already happened — actively
+   misleads it, worse than saying nothing. Delete what is done; state
+   what is true now.
 2. Keep the `gm/` durable reference files (§5) current: add entries
    that have crossed the recurring-referent threshold, update status
    and open threads, mark hidden truth `[SEALED]`. These files — not
