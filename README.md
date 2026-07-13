@@ -236,13 +236,22 @@ resort — never a reflex. Collaborative stories default to
 **freehand**: renders serve immediately and the shared pen ratifies
 or laughs at what the renderer dreamt. Full ritual: `AGENTS.md` §4.7.
 
-Planned on the same loop: a **quartermaster** (future hooks, NPCs,
-locations drafted between sessions into `gm/prep/`). Everything the
-scriptorium produces is *proposal-until-played* — the GM remains the
-only pen that makes things true. And note the doctrine bonus: prep
-committed **before** play reaches it is sealed by timestamp, so the
-background loop manufactures provable foresight as a byproduct.
-Housekeeping that makes the game *fairer*, not just smoother.
+The third job is the **quartermaster** (opt-in — add it to `--jobs`):
+after each session it drafts 2-4 proposals — hooks, NPCs, locations —
+into `gm/prep/` via a headless `claude -p` call, each tied to an open
+thread and carrying at least one foreshadow signal. It triggers on a
+new `state.md` commit (a session happened), runs from an isolated
+working directory so its spoiler-laden transcript can never be swept
+into the player-visible archive, and cannot commit or roll — it only
+reads and writes files; the scriptorium commits its namespace.
+
+Everything the scriptorium produces is *proposal-until-played* — the
+GM remains the only pen that makes things true. And note the doctrine
+bonus: prep committed **before** play reaches it is sealed by
+timestamp, so the background loop manufactures provable foresight as
+a byproduct — "the innkeeper you just met was drafted three sessions
+ago" becomes a hash, not a claim. Housekeeping that makes the game
+*fairer*, not just smoother.
 
 ## On the honor system
 

@@ -240,6 +240,31 @@ stays short because these hold the standing detail.
   fact is only implied, mark it `(inferred)` rather than hardening a
   guess into canon.
 
+**The prep tier (`gm/prep/`).** If the story runs the scriptorium's
+quartermaster job, `gm/prep/` holds machine-drafted PROPOSALS — hooks,
+NPCs, locations, drafted between sessions and sealed by their commit.
+Rules for using it:
+
+- **Proposal-until-played.** Nothing in `gm/prep/` is canon. It is
+  inspiration on tap: use it, adapt it freely, or ignore it. You are
+  never obliged to play a proposal, and a proposal never binds you the
+  way `gm/rules.md` does.
+- **Promotion on first play.** The moment prep material enters the
+  story, it becomes canon *as played* (your table version wins over the
+  drafted text). Promote it: write the played version into the right
+  durable reference file (§5) or `gm/world.md`, and mark the prep entry
+  `[PLAYED <date>]` rather than deleting it — its commit timestamp is
+  now a proof of foresight, so a later reveal ("this NPC was sealed
+  three sessions before you met them") is hash-provable.
+- **Prune freely.** Unplayed prep may be deleted without ceremony — it
+  never was canon. If a proposal contradicts anything written or
+  played, discard it; the quartermaster is supposed to draft
+  conservative extensions, but you are the check.
+- **Prep arrives pre-foreshadowed.** Each entry carries at least one
+  legible signal to show before its material turns costly. If you play
+  the material, play a signal first — that is rule 4, already packed
+  for you.
+
 ## 6. Rules-game first-time setup — exact ritual, in order
 1. Read `surface.md` with the human; let them adjust it; help them
    fill in the player character in `sheet.md` and `state.md`.

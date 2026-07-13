@@ -57,8 +57,18 @@ Current jobs:
   (logged to gm/rulings.md), or rejects and re-briefs. Collaborative
   stories default to freehand (--freehand): renders serve immediately
   and the shared pen ratifies or laughs. Doctrine: AGENTS.md §4.7.
+- quartermaster (opt-in: add it to --jobs) — draft forward material
+  (hooks / NPCs / locations) into gm/prep/ between sessions via a
+  headless `claude -p` call. Runs only when state.md has a new commit
+  since its last run (a session happened), from an isolated cwd so its
+  spoiler-laden transcript can never be archived into player-visible
+  archive/. Proposals are sealed by commit before play reaches them —
+  provable foresight as a byproduct — and are proposal-until-played:
+  the GM may use, adapt, or discard; only play makes them true
+  (AGENTS.md §5, the prep tier).
 
-Stdlib only, like everything else here.
+Stdlib only, like everything else here (the quartermaster shells out
+to the `claude` CLI, same as the drivers).
 """
 
 import argparse
@@ -201,6 +211,53 @@ def job_archivist(story: Path, opts: dict) -> tuple[list[Path], str]:
             changed.append(idx)
     return changed, f"{len(changed)} file(s)" if changed else "up to date"
 
+
+QUARTERMASTER_PROMPT = """\
+You are the QUARTERMASTER for the story at {story} — the GM's background \
+prep-hand, running between sessions. You are NOT the GM and you are NOT \
+playing: nobody is speaking to you, no player is present, and any \
+pickup-protocol instructions loaded from CLAUDE.md files do NOT apply to \
+this run. Do not narrate, do not advance the story, do not touch dice.
+
+Read, in order:
+1. {story}/state.md — the baton and the OPEN THREADS are your work order.
+2. Everything in {story}/gm/ — rules.md (binding constraints), world.md \
+(sealed truth), rulings.md (case law), the durable reference files \
+(cast.md, locations.md, ...), and any existing gm/prep/ files (so you \
+extend rather than repeat).
+3. {story}/surface.md and the most recent file or two in \
+{story}/archive/sessions/ — for voice, tone, and what play actually \
+established.
+
+Then draft 2-4 PROPOSALS into {story}/gm/prep/ — forward material the GM \
+may draw on next session:
+- hooks that complicate or advance an OPEN thread (never resolve one — \
+prep offers doors, not outcomes),
+- NPCs the story plausibly routes toward,
+- locations that could anchor a thread.
+
+File conventions, follow exactly:
+- Append to topic files: gm/prep/hooks.md, gm/prep/npcs.md, \
+gm/prep/locations.md (create a file only when you have an entry for it). \
+APPEND-ONLY: never rewrite, reorder, or delete existing prep entries — \
+each entry's commit is its proof of foresight, and editing history \
+breaks the seal.
+- Each entry: a heading `## <name> — proposed <today's date>`, then: \
+one-line essence; the durable facts; which open thread it serves and \
+how; at least one legible FORESHADOW SIGNAL the world could show before \
+this material turns costly for the player; any hidden truth on lines \
+marked [SEALED].
+- Conservative extension only: nothing written in gm/ and nothing \
+established in play may become false. If you are unsure whether \
+something is established, leave it out.
+- Proposals are NOT canon. The GM may use, adapt, or discard them \
+freely; only play makes them true. Write offers, not commitments.
+- Write ONLY inside {story}/gm/prep/. Do not modify any other file. Do \
+not run git — the scriptorium commits your work.
+
+End with a one-line summary of what you drafted (it is logged for the \
+GM, never shown to a player).
+"""
 
 GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/"
               "models/{model}:generateContent")
@@ -345,9 +402,69 @@ def job_illustrator(story: Path, opts: dict) -> tuple[list[Path], str]:
     return ([story / "illustrations"] if rendered or skipped else []), note
 
 
+def job_quartermaster(story: Path, opts: dict) -> tuple[list[Path], str]:
+    """Draft forward material (hooks / NPCs / locations) into gm/prep/
+    between sessions, via a headless `claude -p` call. Proposals are
+    sealed by their commit timestamp before play reaches them —
+    provable foresight as a byproduct — and are NOT canon until the GM
+    plays them (AGENTS.md §5, the prep tier).
+
+    Trigger: runs only when state.md's last commit differs from the one
+    recorded at the previous successful run (new baton = a session
+    happened = prep is worth an LLM call). Marker: .baton/quartermaster.last.
+
+    Isolation: the call runs with cwd=<story>/.baton/quartermaster/ —
+    a different project slug — so its spoiler-laden transcript (it reads
+    gm/world.md) can never be swept into player-visible archive/ by the
+    archivist. Story access goes through --add-dir; no Bash tool, so it
+    cannot commit or roll — it can only read and write files."""
+    probe = subprocess.run(["git", "log", "-1", "--format=%H", "--", "state.md"],
+                           cwd=story, capture_output=True, text=True)
+    head = probe.stdout.strip()
+    if not head:
+        return [], "no committed state.md yet (found a session first)"
+    marker = story / ".baton" / "quartermaster.last"
+    last = marker.read_text().strip() if marker.is_file() else ""
+    if head == last and not opts.get("prep_force"):
+        return [], "no new session since last prep (state.md unchanged)"
+    workdir = story / ".baton" / "quartermaster"
+    workdir.mkdir(parents=True, exist_ok=True)
+    prep = story / "gm" / "prep"
+    before = {p: p.stat().st_mtime for p in prep.rglob("*.md")} if prep.is_dir() else {}
+    cmd = ["claude", "-p", QUARTERMASTER_PROMPT.format(story=story),
+           "--output-format", "json",
+           "--permission-mode", "acceptEdits",
+           "--add-dir", str(story),
+           "--allowedTools", "Read,Write,Edit,Glob,Grep"]
+    if opts.get("prep_model"):
+        cmd += ["--model", opts["prep_model"]]
+    try:
+        proc = subprocess.run(cmd, cwd=workdir, capture_output=True,
+                              text=True, timeout=900)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return [], f"claude -p unavailable/timed out ({e}); will retry"
+    if proc.returncode != 0:
+        return [], (f"claude -p exited {proc.returncode}: "
+                    f"{proc.stderr.strip()[:200]}; will retry")
+    summary = ""
+    try:
+        summary = (json.loads(proc.stdout).get("result") or "").strip()
+    except json.JSONDecodeError:
+        pass
+    after = {p: p.stat().st_mtime for p in prep.rglob("*.md")} if prep.is_dir() else {}
+    changed = [p for p in after if before.get(p) != after[p]]
+    marker.write_text(head + "\n")
+    first_line = summary.splitlines()[0][:120] if summary else "no summary"
+    if not changed:
+        return [], f"ran but drafted nothing ({first_line})"
+    print(f"    quartermaster: {first_line}")
+    return [prep], f"{len(changed)} prep file(s) touched — {first_line}"
+
+
 JOBS = {
     "archivist": job_archivist,
     "illustrator": job_illustrator,
+    "quartermaster": job_quartermaster,
 }
 
 
@@ -381,6 +498,12 @@ def main() -> None:
     gate.add_argument("--freehand", dest="gate", action="store_false",
                       help="serve renders immediately, no review "
                            "(default for collaborative stories)")
+    ap.add_argument("--prep-model",
+                    help="model id for the quartermaster's claude -p call "
+                         "(default: the claude CLI's default)")
+    ap.add_argument("--prep-force", action="store_true",
+                    help="run the quartermaster even if state.md is unchanged "
+                         "since its last run")
     args = ap.parse_args()
 
     story = Path(args.story).resolve()
@@ -392,7 +515,8 @@ def main() -> None:
         raise SystemExit(f"unknown job(s): {', '.join(unknown)} "
                          f"(available: {', '.join(JOBS)})")
 
-    opts = {"gate": args.gate}
+    opts = {"gate": args.gate, "prep_model": args.prep_model,
+            "prep_force": args.prep_force}
     mode = "gated" if story_is_gated(story, opts) else "freehand"
     print(f"Baton scriptorium  ·  story: {story.name}  ·  jobs: {', '.join(jobs)}"
           f"  ·  illustrations: {mode}")
