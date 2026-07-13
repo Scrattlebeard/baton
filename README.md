@@ -61,6 +61,7 @@ stories/
       rulings.md             # append-only case law
       rolls.log              # hidden rolls (roll.py --gm)
     archive/                 # machine-kept prose record (the scriptorium)
+    illustrations/           # rendered scenes + cast portraits (+ queue/)
 ```
 
 Git does triple duty: **history** is the raw archive (every scene
@@ -206,15 +207,28 @@ writes **only its own namespaces** (`archive/`, and as jobs land,
 And it commits with an explicit **pathspec**, so a GM change staged
 mid-turn is never swept into a scriptorium commit.
 
-Planned jobs ride the same loop: an **illustrator** (scene and cast
-images — a scriptorium is where manuscripts were illuminated, after
-all) and a **quartermaster** (future hooks, NPCs, locations drafted
-between sessions into `gm/prep/`). Everything the scriptorium produces
-is *proposal-until-played* — the GM remains the only pen that makes
-things true. And note the doctrine bonus: prep committed **before**
-play reaches it is sealed by timestamp, so the background loop
-manufactures provable foresight as a byproduct. Housekeeping that
-makes the game *fairer*, not just smoother.
+The second job is the **illustrator** — a scriptorium is where
+manuscripts were illuminated, after all. Anyone with the pen (the GM,
+or you) drops a brief at `illustrations/queue/<name>.md` — the body is
+the image prompt, with optional leading `aspect: 16:9` / `model: ...`
+lines — and the next sweep renders it via the Gemini image API
+(default `gemini-3.1-flash-lite-image`, a.k.a. Nano Banana 2 Lite;
+key from `GOOGLE_API_KEY` in `.env` or the environment). The image
+lands at the mirrored path under `illustrations/` with its brief
+beside it as provenance. Two conventions carry the weight: **briefs
+are player-visible, so they must be written from player-visible canon
+only** — never from `gm/`, because the pixels leak whatever the
+prompt knew — and **a rendered name is never re-rendered**, so a cast
+portrait (`illustrations/queue/cast/<name>.md`) is one face per
+character, generated once, stable across sessions.
+
+Planned on the same loop: a **quartermaster** (future hooks, NPCs,
+locations drafted between sessions into `gm/prep/`). Everything the
+scriptorium produces is *proposal-until-played* — the GM remains the
+only pen that makes things true. And note the doctrine bonus: prep
+committed **before** play reaches it is sealed by timestamp, so the
+background loop manufactures provable foresight as a byproduct.
+Housekeeping that makes the game *fairer*, not just smoother.
 
 ## On the honor system
 

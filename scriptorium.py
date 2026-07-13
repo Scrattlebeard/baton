@@ -38,15 +38,30 @@ Current jobs:
   don't archive a duplicated tail. Plus archive/sessions/index.md in
   chronological order. The story repo becomes its own raw archive —
   the prose survives even if the harness's transcript files are pruned.
+- illustrator — render queued image briefs (illustrations/queue/*.md,
+  body = prompt, optional leading `aspect: 16:9` / `model: ...` lines)
+  via the Gemini image API (default model: nano-banana-2-lite /
+  gemini-3.1-flash-lite-image; key from GOOGLE_API_KEY or
+  GEMINI_API_KEY, .env supported). The image lands at the mirrored
+  path under illustrations/ and the brief moves beside it as
+  provenance. MEMBRANE RULE: briefs live in a player-visible
+  namespace — write them from player-visible canon only, never from
+  gm/ (the pixels leak whatever the prompt knew). A rendered name is
+  never re-rendered, so cast portraits stay stable across sessions:
+  one face per character, generated once, reused.
 
 Stdlib only, like everything else here.
 """
 
 import argparse
+import base64
 import json
+import os
 import re
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 # ---------------------------------------------------------------- shared
@@ -179,8 +194,123 @@ def job_archivist(story: Path) -> tuple[list[Path], str]:
     return changed, f"{len(changed)} file(s)" if changed else "up to date"
 
 
+GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/"
+              "models/{model}:generateContent")
+DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image"  # "Nano Banana 2 Lite"
+
+
+def load_env(story: Path) -> dict:
+    """KEY=VALUE lines from .env beside this script and .env in the
+    story dir (story wins), then the real environment (which wins over
+    both). No dependency on python-dotenv — this is a five-line parse."""
+    env: dict[str, str] = {}
+    for f in (Path(__file__).resolve().parent / ".env", story / ".env"):
+        if f.is_file():
+            for line in f.read_text(errors="replace").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    env[k.strip()] = v.strip().strip("'\"")
+    env.update(os.environ)
+    return env
+
+
+def parse_brief(text: str) -> tuple[dict, str]:
+    """Leading `key: value` lines (aspect / model) are config; the rest
+    of the file is the prompt, verbatim."""
+    cfg: dict[str, str] = {}
+    lines = text.splitlines()
+    i = 0
+    for i, line in enumerate(lines + [""]):
+        m = re.match(r"^(aspect|model)\s*:\s*(\S+)\s*$", line.strip())
+        if m:
+            cfg[m.group(1)] = m.group(2)
+        elif line.strip():
+            break
+    return cfg, "\n".join(lines[i:]).strip()
+
+
+def render_image(prompt: str, model: str, key: str,
+                 aspect: str | None = None) -> tuple[bytes, str]:
+    """One text-to-image call against the Gemini API (stdlib urllib).
+    Returns (image bytes, mime type)."""
+    gen_cfg: dict = {"responseModalities": ["IMAGE"]}
+    if aspect:
+        gen_cfg["imageConfig"] = {"aspectRatio": aspect}
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": gen_cfg,
+    }).encode()
+    req = urllib.request.Request(
+        GEMINI_URL.format(model=model), data=body,
+        headers={"Content-Type": "application/json", "x-goog-api-key": key})
+    with urllib.request.urlopen(req, timeout=180) as r:
+        resp = json.load(r)
+    for cand in resp.get("candidates", []):
+        for part in (cand.get("content") or {}).get("parts", []):
+            blob = part.get("inlineData") or part.get("inline_data") or {}
+            if blob.get("data"):
+                mime = blob.get("mimeType") or blob.get("mime_type") or "image/png"
+                return base64.b64decode(blob["data"]), mime
+    raise RuntimeError("no image in response: " + json.dumps(resp)[:400])
+
+
+def job_illustrator(story: Path) -> tuple[list[Path], str]:
+    """Render queued image briefs. A brief is a markdown file at
+    illustrations/queue/<path>.md whose body is the prompt (optional
+    leading `aspect: 16:9` / `model: ...` lines). The image lands at
+    illustrations/<path>.png|.jpg and the brief moves beside it as
+    provenance. Failures leave the brief queued for the next sweep.
+    An already-rendered name is never re-rendered (cast portraits stay
+    stable): re-queue deliberately by deleting the image first."""
+    queue = story / "illustrations" / "queue"
+    briefs = [p for p in sorted(queue.rglob("*.md"))] if queue.is_dir() else []
+    if not briefs:
+        return [], "queue empty"
+    env = load_env(story)
+    key = env.get("GOOGLE_API_KEY") or env.get("GEMINI_API_KEY")
+    if not key:
+        return [], f"{len(briefs)} brief(s) queued, but no GOOGLE_API_KEY/GEMINI_API_KEY"
+    rendered, failed, skipped = 0, 0, 0
+    for brief in briefs:
+        rel = brief.relative_to(queue)
+        dest_md = story / "illustrations" / rel
+        cfg, prompt = parse_brief(brief.read_text(errors="replace"))
+        existing = [dest_md.with_suffix(s) for s in (".png", ".jpg")
+                    if dest_md.with_suffix(s).exists()]
+        if not prompt or existing:
+            print(f"    illustrator: skip {rel} "
+                  f"({'already rendered' if existing else 'empty brief'})")
+            skipped += 1
+            continue
+        try:
+            data, mime = render_image(prompt, cfg.get("model", DEFAULT_IMAGE_MODEL),
+                                      key, cfg.get("aspect"))
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode(errors="replace")[:300]
+            print(f"    illustrator: FAILED {rel}: HTTP {e.code} {detail}")
+            failed += 1
+            continue
+        except Exception as e:
+            print(f"    illustrator: FAILED {rel}: {e}")
+            failed += 1
+            continue
+        dest = dest_md.with_suffix(".jpg" if "jpeg" in mime else ".png")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(data)
+        dest_md.write_text(brief.read_text(errors="replace"))
+        brief.unlink()  # brief now lives beside its image as provenance
+        print(f"    illustrator: rendered {dest.relative_to(story)} "
+              f"({len(data) // 1024} KB)")
+        rendered += 1
+    note = f"rendered {rendered}, failed {failed}, skipped {skipped}"
+    # One pathspec covers renders, moved briefs, AND queue deletions.
+    return ([story / "illustrations"] if rendered or skipped else []), note
+
+
 JOBS = {
     "archivist": job_archivist,
+    "illustrator": job_illustrator,
 }
 
 
@@ -201,9 +331,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description="Baton scriptorium — background housekeeping outside the main loop")
     ap.add_argument("story", help="path to the story directory")
-    ap.add_argument("--jobs", default="archivist",
+    ap.add_argument("--jobs", default="archivist,illustrator",
                     help=f"comma-separated jobs to run "
-                         f"(available: {', '.join(JOBS)}; default: archivist)")
+                         f"(available: {', '.join(JOBS)}; default: all)")
     ap.add_argument("--interval", type=float, default=300.0,
                     help="seconds between sweeps (default 300)")
     ap.add_argument("--once", action="store_true", help="one sweep, then exit")

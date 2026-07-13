@@ -98,6 +98,19 @@ these rules is in `README.md`; you do not need it to follow them.
    player-safe prose record, useful when you need to quote past scenes
    precisely instead of trusting memory. If your `git add -A` sweeps a
    pending archive file into a session commit, that is harmless.
+6. If the story is illustrated (an `illustrations/` directory exists,
+   or the human asks for pictures): request an image by writing a
+   brief to `illustrations/queue/<name>.md` — the body is the image
+   prompt; optionally start it with an `aspect: 16:9` line (scenes) or
+   `aspect: 3:4` (portraits). Cast portraits go to
+   `illustrations/queue/cast/<name>.md`. The background loop renders
+   them; you never call an image API yourself. Two unbreakable rules:
+   **briefs are player-visible — write them only from player-visible
+   canon** (surface, played scenes), never from `gm/` content, because
+   the pixels leak whatever the prompt knew (rule 2 applies to
+   prompts); and **one portrait per character** — a rendered name is
+   never re-rendered, so the face stays stable; do not queue a second
+   brief for an existing portrait.
 Do this at every natural pause, not only at the end — sessions can
 stop without warning, and the baton is what survives.
 
