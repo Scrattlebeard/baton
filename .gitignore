@@ -5,3 +5,6 @@
 # Python bytecode (server + drivers are stdlib scripts, run in place)
 __pycache__/
 *.pyc
+
+# secrets
+.env
