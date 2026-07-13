@@ -104,7 +104,13 @@ these rules is in `README.md`; you do not need it to follow them.
    prompt; optionally start it with an `aspect: 16:9` line (scenes) or
    `aspect: 3:4` (portraits). Cast portraits go to
    `illustrations/queue/cast/<name>.md`. The background loop renders
-   them; you never call an image API yourself. Two unbreakable rules:
+   them; you never call an image API yourself. To show a scene image in
+   the story, put `![caption](illustrations/<name>)` on its own line in
+   your narration — extensionless, exactly that form — at the moment
+   you want the player to see it (the UI shows a placeholder until the
+   render lands, so you may embed in the same turn you queue the
+   brief). Cast portraits need no embedding: the UI's cast panel picks
+   them up automatically. Two unbreakable rules:
    **briefs are player-visible — write them only from player-visible
    canon** (surface, played scenes), never from `gm/` content, because
    the pixels leak whatever the prompt knew (rule 2 applies to

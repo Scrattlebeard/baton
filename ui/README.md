@@ -60,7 +60,10 @@ tomorrow, without touching the server.
 1. **Serving.** An allowlist: `surface.md`, `sheet.md`, `map.md`,
    `rolls.log`, and a story's own `ui/theme.css`. `gm/**` and
    `state.md` are never served; path traversal and encoded slashes are
-   rejected.
+   rejected. Images under `illustrations/` are also served (player-safe
+   *by construction* — the doctrine requires image briefs to derive from
+   player-visible canon only); `illustrations/queue/` and the `.md`
+   brief files are not, and the route serves image types only.
 2. **Transcript filter.** The observer tails the Claude Code session
    JSONL and forwards **only** assistant `text` blocks (narrator prose)
    and user string messages (player turns) as story content. `thinking`,
@@ -104,6 +107,28 @@ lights them up identically:
 
 The browser also echoes your turn the moment you send it (faded until
 the transcript confirms it) so you never wait to see your own move.
+
+## Illustrations & the cast panel
+
+The scriptorium's illustrator job (see the top-level README) renders
+image briefs into `illustrations/`; the observer puts them on screen:
+
+- **In-stream figures.** A prose line of the form
+  `![caption](illustrations/<name>)` renders as a collapsible figure at
+  exactly that point in the story. Placement rides the transcript, so
+  it is the **GM's narrative choice** — replay-correct, and an image
+  can never appear before the GM chooses to reveal it. Embed
+  *extensionless*: the GM can't know whether the renderer will produce
+  `.png` or `.jpg`, so the server resolves whichever exists.
+- **"Being illuminated…"** — if the GM embeds an image whose render
+  hasn't landed yet (queued this turn, painted between turns), the
+  figure shows a hatched placeholder. When the file lands, the server
+  emits an `illustration` event and the placeholder resolves in place —
+  no reload, the painting simply arrives.
+- **The cast panel** fills from `illustrations/cast/*`: one card per
+  portrait, display name from the filename stem (`the-miller` → "The
+  Miller"). Portraits are never re-rendered by the scriptorium, so a
+  character keeps the same face for the whole story.
 
 ## Resume ribbon
 

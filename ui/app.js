@@ -25,6 +25,17 @@ function inline(s) {
     .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>")
     .replace(/\b_([^_]+)_\b/g, "<em>$1</em>");
 }
+/* Illustration paths: only illustrations/** may become an <img> src, and it
+ * is served through the observer's image-only route (queue/ and briefs are
+ * refused server-side). Extensionless paths are fine — the server resolves
+ * them to whichever image extension the renderer produced. */
+function illSrc(path) {
+  const p = (path || "").trim().replace(/^\.?\//, "");
+  if (!/^illustrations\/[A-Za-z0-9._ \-/]+$/.test(p) || p.includes("..")) return null;
+  return "/story/" + p.split("/").map(encodeURIComponent).join("/");
+}
+const IMG_LINE = /^!\[([^\]]*)\]\(([^)]+)\)$/;
+
 function renderMarkdown(md) {
   if (!md) return "";
   const lines = md.replace(/\r/g, "").split("\n");
@@ -36,7 +47,11 @@ function renderMarkdown(md) {
     const line = raw.replace(/\s+$/, "");
     if (!line.trim()) { flushPara(); flushList(); continue; }
     let m;
-    if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+    if ((m = line.trim().match(IMG_LINE)) && illSrc(m[2])) {
+      flushPara(); flushList();
+      out.push(`<figure class="md-figure"><img src="${illSrc(m[2])}" alt="${esc(m[1])}" loading="lazy">` +
+               (m[1] ? `<figcaption>${inline(m[1])}</figcaption>` : "") + `</figure>`);
+    } else if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
       flushPara(); flushList();
       const lvl = Math.min(m[1].length + 2, 6);
       out.push(`<h${lvl}>${inline(m[2])}</h${lvl}>`);
@@ -73,15 +88,83 @@ function autoscroll(was) { if (was) stream.scrollTop = stream.scrollHeight; }
 
 let lastKind = null;
 
+/* figures whose image hasn't been rendered yet, keyed by name stem — the
+ * scriptorium paints between turns; an `illustration` SSE event resolves
+ * the "being illuminated…" placeholder when the file lands. */
+const awaitingIllumination = new Map();   // stem -> [{img, slot}]
+
+function makeFigure(caption, path) {
+  const src = illSrc(path);
+  if (!src) return null;
+  const stem = path.trim().split("/").pop().replace(/\.[a-z]+$/i, "");
+  const fig = document.createElement("figure");
+  fig.className = "figure";
+  fig.dataset.open = "true";
+  const bar = document.createElement("button");
+  bar.className = "figure__bar";
+  bar.innerHTML = `<span class="figure__chev">▸</span><span class="figure__label">Illustration</span><span class="figure__cap"></span>`;
+  bar.querySelector(".figure__cap").textContent = caption || "";
+  bar.addEventListener("click", () =>
+    fig.dataset.open = fig.dataset.open === "true" ? "false" : "true");
+  const media = document.createElement("div");
+  media.className = "figure__media";
+  const slot = document.createElement("div");
+  slot.className = "figure__slot slot";
+  slot.textContent = "being illuminated…";
+  const img = document.createElement("img");
+  img.className = "figure__img";
+  img.alt = caption || "illustration";
+  img.onload = () => {
+    if (slot.isConnected) slot.replaceWith(img);
+    awaitingIllumination.delete(stem);
+  };
+  img.onerror = () => {
+    // not rendered yet — keep the slot, wait for the illustration event
+    const list = awaitingIllumination.get(stem) || [];
+    list.push({ img });
+    awaitingIllumination.set(stem, list);
+  };
+  img.src = src;
+  media.appendChild(slot);
+  if (caption) {
+    const cap = document.createElement("figcaption");
+    cap.className = "figure__caption";
+    cap.textContent = caption;
+    media.appendChild(cap);
+  }
+  fig.append(bar, media);
+  return fig;
+}
+
+function resolveIllumination(name, src) {
+  const list = awaitingIllumination.get(name);
+  if (!list) return;
+  list.forEach(({ img }) => { img.src = src + "?r=" + Date.now(); });
+  // onload swaps the slot for the img and clears the map entry
+}
+
 function addProse(text) {
   const was = atBottom();
   const div = document.createElement("div");
   div.className = "prose";
-  // split into paragraphs on blank lines
+  // split into paragraphs on blank lines; a lone ![cap](illustrations/…)
+  // line becomes an inline figure (the GM's pen controls placement)
   text.split(/\n{2,}/).forEach((chunk) => {
-    const p = document.createElement("p");
-    p.innerHTML = inline(chunk.replace(/\n/g, " "));
-    div.appendChild(p);
+    let buf = [];
+    const flush = () => {
+      if (!buf.length) return;
+      const p = document.createElement("p");
+      p.innerHTML = inline(buf.join(" "));
+      div.appendChild(p);
+      buf = [];
+    };
+    for (const ln of chunk.split("\n")) {
+      const m = ln.trim().match(IMG_LINE);
+      const fig = m && makeFigure(m[1], m[2]);
+      if (fig) { flush(); div.appendChild(fig); }
+      else buf.push(ln);
+    }
+    flush();
   });
   flow.appendChild(div);
   lastKind = "prose";
@@ -246,6 +329,36 @@ function clearDrawers() {
 }
 
 /* --------------------------------------------------------------------- *
+ * Cast panel — portraits from illustrations/cast/, one face per character
+ * (the scriptorium never re-renders a name, so faces are stable).
+ * --------------------------------------------------------------------- */
+const castListEl = $("#cast-list");
+
+function setCast(list) {
+  castListEl.innerHTML = "";
+  const has = Array.isArray(list) && list.length > 0;
+  $("#cast-empty").hidden = has;
+  if (!has) return;
+  list.forEach((c) => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const img = document.createElement("img");
+    img.className = "card__portrait";
+    img.alt = c.name;
+    img.loading = "lazy";
+    img.src = c.src;
+    const body = document.createElement("div");
+    body.className = "card__body";
+    const name = document.createElement("div");
+    name.className = "card__name";
+    name.textContent = c.name;
+    body.appendChild(name);
+    card.append(img, body);
+    castListEl.appendChild(card);
+  });
+}
+
+/* --------------------------------------------------------------------- *
  * Resume ribbon / notary / meta / session
  * --------------------------------------------------------------------- */
 let resumeDismissed = false;
@@ -287,6 +400,8 @@ function connect() {
     flow.innerHTML = "";
     lastKind = null;
     clearDrawers();  // fresh snapshot rebuilds only the present drawers
+    setCast(null);   // snapshot re-emits cast if the story has one
+    awaitingIllumination.clear();
     if (!foundingDismissed) $("#founding").hidden = true;
   });
   es.addEventListener("founding", (e) => {
@@ -323,6 +438,12 @@ function connect() {
   es.addEventListener("activity", (e) => {
     const d = JSON.parse(e.data);
     setActivity(d.verb, d.target);
+  });
+  es.addEventListener("cast", (e) => setCast(JSON.parse(e.data).cast));
+  // a fresh render landed on disk — resolve any waiting placeholders
+  es.addEventListener("illustration", (e) => {
+    const d = JSON.parse(e.data);
+    resolveIllumination(d.name, d.src);
   });
   es.addEventListener("resume", (e) => setResume(JSON.parse(e.data)));
   es.addEventListener("notary", (e) => setNotary(JSON.parse(e.data)));

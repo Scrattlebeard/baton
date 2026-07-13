@@ -46,6 +46,12 @@ SKELETON = UI_DIR.parent / "templates" / "story-skeleton"
 # ---------------------------------------------------------------------------
 SERVED_FILES = {"surface.md", "sheet.md", "map.md", "rolls.log", "theme.css"}
 # theme.css is looked up at <story>/ui/theme.css (a story's own skin).
+# Plus: images under <story>/illustrations/ (rendered by the scriptorium's
+# illustrator job) — player-safe BY CONSTRUCTION, because the doctrine
+# requires briefs to derive from player-visible canon only. queue/ (unrendered
+# briefs) and the .md brief files are still never served: images only.
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
+               ".jpeg": "image/jpeg", ".webp": "image/webp"}
 
 POLL_SECONDS = 0.5
 
@@ -327,6 +333,34 @@ def read_latest_roll(story_dir: Path):
     }
 
 
+def list_illustrations(story_dir: Path) -> dict[str, float]:
+    """Rendered images under illustrations/ as {posix relpath: mtime}.
+    queue/ (unrendered briefs) is excluded; only image files count."""
+    root = story_dir / "illustrations"
+    out: dict[str, float] = {}
+    if not root.is_dir():
+        return out
+    for p in root.rglob("*"):
+        if p.is_file() and p.suffix.lower() in IMAGE_TYPES:
+            rel = p.relative_to(root).as_posix()
+            if not rel.startswith("queue/"):
+                out[rel] = p.stat().st_mtime
+    return out
+
+
+def cast_entries(story_dir: Path) -> list[dict]:
+    """The cast panel's data: one entry per portrait in illustrations/cast/.
+    The display name is the filename stem, dashes to spaces, title-cased."""
+    entries = []
+    for rel in sorted(list_illustrations(story_dir)):
+        parts = rel.split("/")
+        if len(parts) == 2 and parts[0] == "cast":
+            stem = os.path.splitext(parts[1])[0]
+            name = re.sub(r"[-_]+", " ", stem).strip().title()
+            entries.append({"name": name, "src": f"/story/illustrations/{rel}"})
+    return entries
+
+
 def read_notary(story_dir: Path):
     """Provenance WITHOUT content. mtime of gm/ hidden state → 'the world
     reacted, and when'; the git short-hash of the newest gm/ commit is the
@@ -395,6 +429,7 @@ class Watcher(threading.Thread):
         self.founding = founding
         self._mtimes: dict[str, float] = {}
         self._drawers: dict[str, float] = {}   # drawer key -> mtime
+        self._ill: dict[str, float] = {}       # illustration relpath -> mtime
         self._busy: bool | None = None
         self._offset = 0
         self._first_scan_done = False
@@ -432,6 +467,9 @@ class Watcher(threading.Thread):
         notary = read_notary(self.story)
         if notary:
             events.append(("notary", notary))
+        cast = cast_entries(self.story)
+        if cast:
+            events.append(("cast", {"cast": cast}))
         inbox = self.story / ".baton" / "inbox"
         if inbox.is_dir() and list(inbox.glob("*.md")):
             events.append(("busy", {"active": True}))
@@ -525,6 +563,21 @@ class Watcher(threading.Thread):
                 n = read_notary(self.story)
                 if n:
                     self.bus.publish("notary", n)
+        # 3b) illustrations — new renders announce themselves (the client
+        #     uses this to resolve "being illuminated…" placeholders), and
+        #     a changed cast/ set refreshes the cast panel.
+        ill = list_illustrations(self.story)
+        if ill != self._ill:
+            if self._first_scan_done:
+                for rel in sorted(set(ill) - set(self._ill)):
+                    self.bus.publish("illustration", {
+                        "name": os.path.splitext(os.path.basename(rel))[0],
+                        "src": f"/story/illustrations/{rel}"})
+                old_cast = {k for k in self._ill if k.startswith("cast/")}
+                new_cast = {k for k in ill if k.startswith("cast/")}
+                if old_cast != new_cast:
+                    self.bus.publish("cast", {"cast": cast_entries(self.story)})
+            self._ill = ill
         # 4) busy — a turn is in flight while the inbox holds an unconsumed
         #    file (the driver moves it to done/ when the model finishes).
         inbox = self.story / ".baton" / "inbox"
@@ -591,6 +644,30 @@ def make_handler(story_dir: Path, bus: Bus, watcher: Watcher, inbox: Path):
             ctype = ctypes.get(target.suffix, "application/octet-stream")
             self._send(200, ctype + "; charset=utf-8", target.read_bytes())
 
+        def _serve_illustration(self, rel: str):
+            """Images under <story>/illustrations/ only — never queue/,
+            never the .md briefs. An extensionless request resolves to
+            whichever image extension exists (the GM embeds extensionless,
+            since it can't know what the renderer will produce)."""
+            from urllib.parse import unquote
+            rel = unquote(rel).strip("/")
+            if (not rel or ".." in rel
+                    or not re.fullmatch(r"[A-Za-z0-9._ \-/]+", rel)
+                    or rel.split("/", 1)[0] == "queue"):
+                self._send(403, "text/plain", b"forbidden"); return
+            root = (story_dir / "illustrations").resolve()
+            target = (root / rel).resolve()
+            if not str(target).startswith(str(root) + os.sep):
+                self._send(403, "text/plain", b"forbidden"); return
+            candidates = ([target] if target.suffix else
+                          [target.with_suffix(s) for s in IMAGE_TYPES])
+            for c in candidates:
+                if c.suffix.lower() in IMAGE_TYPES and c.is_file():
+                    self._send(200, IMAGE_TYPES[c.suffix.lower()], c.read_bytes(),
+                               extra={"Cache-Control": "max-age=300"})
+                    return
+            self._send(404, "text/plain", b"not found")
+
         def _serve_story_file(self, name: str):
             # membrane: allowlist only, no traversal, gm/ & state.md invisible.
             if name == "theme.css":
@@ -616,6 +693,8 @@ def make_handler(story_dir: Path, bus: Bus, watcher: Watcher, inbox: Path):
                 self._events()
             elif path == "/story/theme.css":
                 self._serve_story_file("theme.css")
+            elif path.startswith("/story/illustrations/"):
+                self._serve_illustration(path[len("/story/illustrations/"):])
             elif path.startswith("/story/"):
                 self._serve_story_file(path[len("/story/"):])
             elif path in ("/styles.css", "/app.js", "/index.html") or path.startswith("/themes/"):

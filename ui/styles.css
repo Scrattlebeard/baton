@@ -704,6 +704,9 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
   border-radius: 0;
   border: 0;
   border-bottom: 1px solid var(--rule);
+  object-fit: cover;          /* portraits render 3:4 — crop, biased to the face */
+  object-position: center 22%;
+  display: block;
 }
 .card__portrait.slot { font-size: var(--text-xs); }
 .card__body { padding: 0.7rem 0.85rem 0.85rem; }
@@ -754,6 +757,12 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
 .figure__media { display: none; padding: 0 0.85rem 0.85rem; }
 .figure[data-open="true"] .figure__media { display: block; }
 .figure__slot { width: 100%; aspect-ratio: 16 / 9; }
+.figure__img, .figure__media img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--radius);
+}
 .figure__caption {
   margin-top: 0.55rem;
   font-family: var(--font-ui);
@@ -772,6 +781,9 @@ a { color: var(--accent); text-decoration-color: var(--accent-underline); text-u
 .md em { font-style: italic; color: var(--ink-faint); }
 .md .stat-row { display: flex; justify-content: space-between; gap: 1rem; padding: 0.18rem 0; border-bottom: 1px dotted var(--rule); font-family: var(--font-mono); font-size: 0.85rem; color: var(--ink); }
 .md .pips { letter-spacing: 0.12em; color: var(--accent); }
+.md .md-figure { margin: 0.75rem 0; }
+.md .md-figure img { max-width: 100%; height: auto; display: block; border-radius: var(--radius); border: 1px solid var(--rule); }
+.md .md-figure figcaption { margin-top: 0.35rem; font-family: var(--font-ui); font-size: var(--text-xs); color: var(--ink-faint); text-align: center; }
 .map-slot { height: 8rem; }
 
 /* =====================================================================
