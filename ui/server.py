@@ -136,6 +136,23 @@ def _is_noise(text: str) -> bool:
     return any(m in text for m in _MARKERS)
 
 
+# Driver→GM plumbing that rides inside *user* messages but is not the
+# player's words: the --refound tail wrapper and sawtooth baton nudges.
+# Kept in sync with ui/drivers/claude_p.py and scriptorium.py.
+_REFOUND_HEAD = "[OOC: Fresh session — re-founding from the baton."
+_REFOUND_TAIL_END = "[OOC: end of tail — the player's next turn:]"
+_SAW_NUDGE_PREFIX = "[OOC driver → GM:"
+
+
+def _clean_player_text(text: str) -> str:
+    if text.startswith(_REFOUND_HEAD) and _REFOUND_TAIL_END in text:
+        text = text.split(_REFOUND_TAIL_END, 1)[1].strip()
+    if _SAW_NUDGE_PREFIX in text:
+        text = "\n".join(ln for ln in text.splitlines()
+                         if not ln.strip().startswith(_SAW_NUDGE_PREFIX)).strip()
+    return text
+
+
 # Player-safe files whose name may appear in an activity line. Everything
 # else — gm/**, state.md, arbitrary paths — is redacted to a generic verb,
 # same discipline as the notary: surface the verb, never the hidden object.
@@ -206,7 +223,7 @@ def parse_transcript_events(lines, skip_first_turn: bool, emit_activity: bool = 
             # user channel is tool_result (or command plumbing) — skip.
             if not isinstance(content, str):
                 continue
-            text = content.strip()
+            text = _clean_player_text(content.strip())
             if not text or _is_noise(text):
                 continue
             if skip_first_turn and not seen_first_turn:

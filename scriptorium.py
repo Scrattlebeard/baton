@@ -89,6 +89,7 @@ from pathlib import Path
 
 REFOUND_HEAD = "[OOC: Fresh session — re-founding from the baton."
 REFOUND_TAIL_END = "[OOC: end of tail — the player's next turn:]"
+SAW_NUDGE_PREFIX = "[OOC driver → GM:"
 
 
 def project_slug(story: Path) -> str:
@@ -104,9 +105,14 @@ def transcripts(story: Path) -> list[Path]:
 def unwrap_refound(text: str) -> str:
     """A --refound first turn arrives wrapped: OOC frame + verbatim tail
     + the player's actual turn. The tail is prose that already lives in
-    the PREVIOUS session's archive — keep only the player's turn."""
+    the PREVIOUS session's archive — keep only the player's turn. Also
+    drops sawtooth nudge lines (driver→GM plumbing, not the player's
+    words); kept in sync with ui/drivers/claude_p.py and ui/server.py."""
     if text.startswith(REFOUND_HEAD) and REFOUND_TAIL_END in text:
-        return text.split(REFOUND_TAIL_END, 1)[1].strip()
+        text = text.split(REFOUND_TAIL_END, 1)[1].strip()
+    if SAW_NUDGE_PREFIX in text:
+        text = "\n".join(ln for ln in text.splitlines()
+                         if not ln.strip().startswith(SAW_NUDGE_PREFIX)).strip()
     return text
 
 

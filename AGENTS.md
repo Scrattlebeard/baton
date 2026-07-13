@@ -83,7 +83,10 @@ these rules is in `README.md`; you do not need it to follow them.
    treats the baton as authoritative, so a **stale** line — an
    instruction for something that has already happened — actively
    misleads it, worse than saying nothing. Delete what is done; state
-   what is true now.
+   what is true now. If a turn arrives carrying a driver nudge
+   (`[OOC driver → GM: sawtooth threshold reached …]`), do this refresh
+   at the end of THAT turn without fail — the next session will be
+   re-founded from exactly what you write.
 2. Keep the `gm/` durable reference files (§5) current: add entries
    that have crossed the recurring-referent threshold, update status
    and open threads, mark hidden truth `[SEALED]`. These files — not

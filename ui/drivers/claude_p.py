@@ -35,6 +35,34 @@ from pathlib import Path
 
 POLL_SECONDS = 0.5
 
+# Driver→GM plumbing markers. These appear inside *user* messages in the
+# transcript but are not the player's words — the observer, the archivist,
+# and this driver's own tail-writer all strip them (kept in sync with
+# ui/server.py and scriptorium.py).
+REFOUND_HEAD = "[OOC: Fresh session — re-founding from the baton."
+REFOUND_TAIL_END = "[OOC: end of tail — the player's next turn:]"
+SAW_NUDGE_PREFIX = "[OOC driver → GM:"
+SAW_NUDGE = (
+    "[OOC driver → GM: sawtooth threshold reached — this session's transcript "
+    "is long. At the END of this turn, refresh the Baton in state.md (and the "
+    "## Resume recap in surface.md if the UI is in use) so the next turn can "
+    "re-found cleanly; delete stale baton lines, state what is true now. Then "
+    "answer the player's turn below as normal.]"
+)
+
+
+def clean_player_text(text: str) -> str:
+    """The player's actual words: unwrap a --refound tail injection and drop
+    sawtooth nudge lines. Applied wherever a user message is treated as the
+    player's hand (here for the verbatim tail; the observer and archivist
+    carry the same logic)."""
+    if text.startswith(REFOUND_HEAD) and REFOUND_TAIL_END in text:
+        text = text.split(REFOUND_TAIL_END, 1)[1].strip()
+    if SAW_NUDGE_PREFIX in text:
+        text = "\n".join(ln for ln in text.splitlines()
+                         if not ln.strip().startswith(SAW_NUDGE_PREFIX)).strip()
+    return text
+
 
 def run_turn(story: Path, text: str, sid: str | None, model: str | None,
              perm: str | None, extra: list[str]) -> dict:
@@ -102,7 +130,7 @@ def extract_stream(transcript: Path) -> list[tuple[str, str]]:
         role = msg.get("role")
         content = msg.get("content")
         if role == "user" and isinstance(content, str):
-            t = content.strip()
+            t = clean_player_text(content.strip())
             if t:
                 out.append(("player", t))
         elif role == "assistant" and isinstance(content, list):
@@ -175,6 +203,16 @@ def main() -> None:
                          "the last 2 exchanges, prose-only) on the first turn. The "
                          "sawtooth reset — durable continuity is the baton + gm/ + tail, "
                          "on disk, not the session id.")
+    ap.add_argument("--saw", nargs="?", const=8.0, type=float, default=None,
+                    metavar="MB",
+                    help="auto-refound (make the sawtooth actually saw): once the "
+                         "session transcript exceeds MB megabytes (bare flag: 8), "
+                         "re-found automatically — but only on a TRUE edge. If the GM "
+                         "refreshed state.md during the turn that crossed the threshold, "
+                         "the next turn re-founds; otherwise the driver first asks the "
+                         "GM, via an OOC nudge on the next turn, to refresh the baton — "
+                         "a re-found trusts the baton, so a stale one misleads worse "
+                         "than none.")
     ap.add_argument("--model", help="model id passed to claude -p")
     ap.add_argument("--permission-mode", dest="perm",
                     help="claude --permission-mode (e.g. acceptEdits, bypassPermissions). "
@@ -216,8 +254,20 @@ def main() -> None:
         import re
         return re.sub(r"[^a-zA-Z0-9]", "-", str(story))
 
+    saw_bytes = int(args.saw * 1_000_000) if args.saw else None
+    saw_nudge_pending = False    # ask the GM for a fresh baton next turn
+    saw_refound_pending = False  # baton is fresh — drop the saw next turn
+    state_md = story / "state.md"
+
+    def baton_mtime() -> float:
+        try:
+            return state_md.stat().st_mtime
+        except FileNotFoundError:
+            return 0.0
+
     def drain() -> int:
         nonlocal sid, printed_session, inject_recent
+        nonlocal saw_nudge_pending, saw_refound_pending
         turns = sorted(p for p in inbox.glob("*.md") if p.is_file())
         for p in turns:
             text = p.read_text(errors="replace").rstrip("\n")
@@ -225,12 +275,23 @@ def main() -> None:
                 p.rename(done / p.name)
                 continue
             print(f"  → turn {p.name}: {text[:60]!r}")
+            if saw_refound_pending:
+                sid = None
+                inject_recent = True
+                saw_refound_pending = False
+                print("    ⚙ sawtooth: dropping the saw — fresh session, "
+                      "re-founding from the baton")
             send_text = text
+            if saw_nudge_pending:
+                send_text = SAW_NUDGE + "\n\n" + send_text
+                saw_nudge_pending = False
+                print("    ⚙ sawtooth: asking the GM for a fresh baton this turn")
             if inject_recent:
-                send_text = wrap_refound_prompt(story, text)
+                send_text = wrap_refound_prompt(story, send_text)
                 print("    ↻ re-founding: verbatim tail "
                       + ("injected from .baton/recent.md" if send_text != text
                          else "unavailable (clean fresh start)"))
+            pre_baton = baton_mtime()
             try:
                 result = run_turn(story, send_text, sid, args.model, args.perm, extra)
             except Exception as e:
@@ -259,6 +320,23 @@ def main() -> None:
                     printed_session = True
                 # Keep the verbatim tail current so the next --refound is lossless.
                 write_recent_tail(story, tpath)
+                # The sawtooth: past the threshold, re-found — but only on a
+                # TRUE edge. A re-found trusts the baton, so the saw drops
+                # only after a turn in which the GM refreshed state.md;
+                # otherwise we first ask for a fresh baton, OOC, next turn.
+                if saw_bytes and not saw_refound_pending:
+                    tsize = tpath.stat().st_size if tpath.exists() else 0
+                    if tsize >= saw_bytes:
+                        if baton_mtime() > pre_baton:
+                            saw_refound_pending = True
+                            print(f"    ⚙ sawtooth armed: transcript "
+                                  f"{tsize / 1e6:.1f} MB ≥ {args.saw:g} MB and "
+                                  f"the baton is fresh — next turn re-founds")
+                        elif not saw_nudge_pending:
+                            saw_nudge_pending = True
+                            print(f"    ⚙ sawtooth: transcript {tsize / 1e6:.1f} MB "
+                                  f"≥ {args.saw:g} MB but the baton was not "
+                                  f"refreshed this turn — will nudge the GM")
             snippet = (result.get("result") or "").strip().replace("\n", " ")
             print(f"    ✓ narrator replied ({len(snippet)} chars): {snippet[:70]!r}")
             p.rename(done / p.name)

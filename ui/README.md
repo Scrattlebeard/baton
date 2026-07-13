@@ -226,6 +226,17 @@ consequences:
   blocks into another). The reset is only as lossless as the baton is
   kept rich — which is the maintenance discipline AGENTS.md §4 already
   requires.
+- **`--saw [MB]`** makes the sawtooth *automatic* (bare flag: 8 MB).
+  Once the session transcript crosses the threshold, the driver
+  re-founds — but only on a **true edge**: a re-found trusts the baton,
+  so a stale one misleads worse than none. If the GM refreshed
+  `state.md` during the turn that crossed the threshold, the next turn
+  re-founds; otherwise the driver first prepends an OOC nudge to the
+  next turn asking the GM to refresh the baton, and drops the saw on
+  the turn after. The nudge and the refound wrapper are driver→GM
+  plumbing riding inside user messages — the observer, the archivist,
+  and the driver's own tail-writer all strip them, so the player never
+  sees words they didn't write.
 
 ## Permissions — a headless GM needs its tool use
 
