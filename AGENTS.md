@@ -244,7 +244,7 @@ stays short because these hold the standing detail.
   guess into canon.
 
 **The prep tier (`gm/prep/`).** If the story runs the scriptorium's
-quartermaster job, `gm/prep/` holds machine-drafted PROPOSALS — hooks,
+cellarer job, `gm/prep/` holds machine-drafted PROPOSALS — hooks,
 NPCs, locations, drafted between sessions and sealed by their commit.
 Rules for using it:
 
@@ -261,7 +261,7 @@ Rules for using it:
   three sessions before you met them") is hash-provable.
 - **Prune freely.** Unplayed prep may be deleted without ceremony — it
   never was canon. If a proposal contradicts anything written or
-  played, discard it; the quartermaster is supposed to draft
+  played, discard it; the cellarer is supposed to draft
   conservative extensions, but you are the check.
 - **Prep arrives pre-foreshadowed.** Each entry carries at least one
   legible signal to show before its material turns costly. If you play

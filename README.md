@@ -236,7 +236,7 @@ resort — never a reflex. Collaborative stories default to
 **freehand**: renders serve immediately and the shared pen ratifies
 or laughs at what the renderer dreamt. Full ritual: `AGENTS.md` §4.7.
 
-The third job is the **quartermaster** (opt-in — add it to `--jobs`):
+The third job is the **cellarer** (opt-in — add it to `--jobs`):
 after each session it drafts 2-4 proposals — hooks, NPCs, locations —
 into `gm/prep/` via a headless `claude -p` call, each tied to an open
 thread and carrying at least one foreshadow signal. It triggers on a

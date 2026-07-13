@@ -6,7 +6,7 @@ Play happens in the main loop (a GM session fed by a driver). The
 scriptorium is the monastery annex where everything that should NOT
 block a player turn happens: copying the transcript into the story
 repo (archiving), and — as jobs land — illumination (scene and cast
-images) and quartermaster prep (future hooks, NPCs, locations, sealed
+images) and cellarer prep (future hooks, NPCs, locations, sealed
 in gm/prep/ ahead of play). Housekeeping and preparation outside the
 main loop.
 
@@ -57,7 +57,7 @@ Current jobs:
   (logged to gm/rulings.md), or rejects and re-briefs. Collaborative
   stories default to freehand (--freehand): renders serve immediately
   and the shared pen ratifies or laughs. Doctrine: AGENTS.md §4.7.
-- quartermaster (opt-in: add it to --jobs) — draft forward material
+- cellarer (opt-in: add it to --jobs) — draft forward material
   (hooks / NPCs / locations) into gm/prep/ between sessions via a
   headless `claude -p` call. Runs only when state.md has a new commit
   since its last run (a session happened), from an isolated cwd so its
@@ -67,7 +67,7 @@ Current jobs:
   the GM may use, adapt, or discard; only play makes them true
   (AGENTS.md §5, the prep tier).
 
-Stdlib only, like everything else here (the quartermaster shells out
+Stdlib only, like everything else here (the cellarer shells out
 to the `claude` CLI, same as the drivers).
 """
 
@@ -218,8 +218,9 @@ def job_archivist(story: Path, opts: dict) -> tuple[list[Path], str]:
     return changed, f"{len(changed)} file(s)" if changed else "up to date"
 
 
-QUARTERMASTER_PROMPT = """\
-You are the QUARTERMASTER for the story at {story} — the GM's background \
+CELLARER_PROMPT = """\
+You are the CELLARER — the monastery's provisioner — for the story at \
+{story}: the GM's background \
 prep-hand, running between sessions. You are NOT the GM and you are NOT \
 playing: nobody is speaking to you, no player is present, and any \
 pickup-protocol instructions loaded from CLAUDE.md files do NOT apply to \
@@ -408,7 +409,7 @@ def job_illustrator(story: Path, opts: dict) -> tuple[list[Path], str]:
     return ([story / "illustrations"] if rendered or skipped else []), note
 
 
-def job_quartermaster(story: Path, opts: dict) -> tuple[list[Path], str]:
+def job_cellarer(story: Path, opts: dict) -> tuple[list[Path], str]:
     """Draft forward material (hooks / NPCs / locations) into gm/prep/
     between sessions, via a headless `claude -p` call. Proposals are
     sealed by their commit timestamp before play reaches them —
@@ -417,9 +418,9 @@ def job_quartermaster(story: Path, opts: dict) -> tuple[list[Path], str]:
 
     Trigger: runs only when state.md's last commit differs from the one
     recorded at the previous successful run (new baton = a session
-    happened = prep is worth an LLM call). Marker: .baton/quartermaster.last.
+    happened = prep is worth an LLM call). Marker: .baton/cellarer.last.
 
-    Isolation: the call runs with cwd=<story>/.baton/quartermaster/ —
+    Isolation: the call runs with cwd=<story>/.baton/cellarer/ —
     a different project slug — so its spoiler-laden transcript (it reads
     gm/world.md) can never be swept into player-visible archive/ by the
     archivist. Story access goes through --add-dir; no Bash tool, so it
@@ -429,15 +430,17 @@ def job_quartermaster(story: Path, opts: dict) -> tuple[list[Path], str]:
     head = probe.stdout.strip()
     if not head:
         return [], "no committed state.md yet (found a session first)"
-    marker = story / ".baton" / "quartermaster.last"
-    last = marker.read_text().strip() if marker.is_file() else ""
+    marker = story / ".baton" / "cellarer.last"
+    legacy = story / ".baton" / "quartermaster.last"  # pre-rename marker
+    last = (marker.read_text().strip() if marker.is_file()
+            else legacy.read_text().strip() if legacy.is_file() else "")
     if head == last and not opts.get("prep_force"):
         return [], "no new session since last prep (state.md unchanged)"
-    workdir = story / ".baton" / "quartermaster"
+    workdir = story / ".baton" / "cellarer"
     workdir.mkdir(parents=True, exist_ok=True)
     prep = story / "gm" / "prep"
     before = {p: p.stat().st_mtime for p in prep.rglob("*.md")} if prep.is_dir() else {}
-    cmd = ["claude", "-p", QUARTERMASTER_PROMPT.format(story=story),
+    cmd = ["claude", "-p", CELLARER_PROMPT.format(story=story),
            "--output-format", "json",
            "--permission-mode", "acceptEdits",
            "--add-dir", str(story),
@@ -463,14 +466,15 @@ def job_quartermaster(story: Path, opts: dict) -> tuple[list[Path], str]:
     first_line = summary.splitlines()[0][:120] if summary else "no summary"
     if not changed:
         return [], f"ran but drafted nothing ({first_line})"
-    print(f"    quartermaster: {first_line}")
+    print(f"    cellarer: {first_line}")
     return [prep], f"{len(changed)} prep file(s) touched — {first_line}"
 
 
 JOBS = {
     "archivist": job_archivist,
     "illustrator": job_illustrator,
-    "quartermaster": job_quartermaster,
+    "cellarer": job_cellarer,
+    "quartermaster": job_cellarer,  # alias — the soldier's name still opens the pantry
 }
 
 
@@ -505,10 +509,10 @@ def main() -> None:
                       help="serve renders immediately, no review "
                            "(default for collaborative stories)")
     ap.add_argument("--prep-model",
-                    help="model id for the quartermaster's claude -p call "
+                    help="model id for the cellarer's claude -p call "
                          "(default: the claude CLI's default)")
     ap.add_argument("--prep-force", action="store_true",
-                    help="run the quartermaster even if state.md is unchanged "
+                    help="run the cellarer even if state.md is unchanged "
                          "since its last run")
     args = ap.parse_args()
 
