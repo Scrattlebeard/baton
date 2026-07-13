@@ -92,6 +92,12 @@ these rules is in `README.md`; you do not need it to follow them.
 3. Commit: `git add -A && git commit -m "session: <one line>"`.
    Also commit immediately after any change to `gm/`.
 4. If you cannot run git, ask the human to run the commands.
+5. If the story has an `archive/` directory, it is machine-kept (the
+   background loop, `scriptorium.py`, regenerates it from the session
+   transcripts). Never edit it. You MAY read it — it is the exact
+   player-safe prose record, useful when you need to quote past scenes
+   precisely instead of trusting memory. If your `git add -A` sweeps a
+   pending archive file into a session commit, that is harmless.
 Do this at every natural pause, not only at the end — sessions can
 stop without warning, and the baton is what survives.
 

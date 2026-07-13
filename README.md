@@ -60,6 +60,7 @@ stories/
       world.md               # sealed world-truth
       rulings.md             # append-only case law
       rolls.log              # hidden rolls (roll.py --gm)
+    archive/                 # machine-kept prose record (the scriptorium)
 ```
 
 Git does triple duty: **history** is the raw archive (every scene
@@ -180,6 +181,40 @@ pre-authorized — see [`ui/README.md`](ui/README.md) § Permissions. The
 inbox is a plain queue, so drivers are swappable and independent;
 without one running, the UI is still a live reading surface and turns
 simply wait until a driver picks them up.
+
+## A background loop (optional)
+
+`scriptorium.py` is the third process class, beside the observer and
+the driver: a background worker for everything that should not block a
+player turn — housekeeping and preparation outside the main loop.
+
+```
+python3 scriptorium.py stories/<name> --once           # one sweep
+python3 scriptorium.py stories/<name> --interval 300   # keep sweeping
+```
+
+Its first job is the **archivist**: it copies every session's prose
+into `archive/sessions/` in the story repo itself — membrane-filtered
+exactly like the observer (no thinking, no tool calls), so the record
+is player-safe and model-portable, and the story stops depending on
+the harness keeping its transcript files forever. Sweeps are
+idempotent; nothing new means no commit.
+
+Two rules make two writers in one repository safe. The scriptorium
+writes **only its own namespaces** (`archive/`, and as jobs land,
+`illustrations/` and `gm/prep/`) — never `state.md`, never the baton.
+And it commits with an explicit **pathspec**, so a GM change staged
+mid-turn is never swept into a scriptorium commit.
+
+Planned jobs ride the same loop: an **illustrator** (scene and cast
+images — a scriptorium is where manuscripts were illuminated, after
+all) and a **quartermaster** (future hooks, NPCs, locations drafted
+between sessions into `gm/prep/`). Everything the scriptorium produces
+is *proposal-until-played* — the GM remains the only pen that makes
+things true. And note the doctrine bonus: prep committed **before**
+play reaches it is sealed by timestamp, so the background loop
+manufactures provable foresight as a byproduct. Housekeeping that
+makes the game *fairer*, not just smoother.
 
 ## On the honor system
 
