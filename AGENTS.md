@@ -115,7 +115,23 @@ these rules is in `README.md`; you do not need it to follow them.
    the same turn you queue the brief; in a *gated* story (crawler,
    rules-game) embed only after you have approved the image (point 7).
    Cast portraits need no embedding: the UI's cast panel picks
-   them up automatically. Two unbreakable rules:
+   them up automatically.
+   **House style:** when a story first goes illustrated, co-design a
+   short visual style brief with the human — medium, palette, mood,
+   what the pictures should feel like — and write it to
+   `illustrations/style.md` (player-visible; it is the visual
+   `register.md`). The background loop appends it to every brief, so
+   all renders share one look. Keep it stable: changing it mid-story
+   restyles only future renders and makes the book disagree with
+   itself; treat a change like a register change — open conversation,
+   not a quiet edit. A brief can opt out with a leading `style: none`
+   line (rare; e.g. an in-world artifact drawn in a different hand).
+   **Reference images:** when a scene includes a recurring character
+   who has an approved portrait, add a leading `ref: cast/<name>` line
+   to the brief (repeatable, extension optional) — the renderer then
+   keeps the face consistent with the portrait. Refs must be approved
+   canon: a brief whose ref is still in `pending/` simply waits in the
+   queue until the portrait clears the gate. Two unbreakable rules:
    **briefs are player-visible — write them only from player-visible
    canon** (surface, played scenes), never from `gm/` content, because
    the pixels leak whatever the prompt knew (rule 2 applies to

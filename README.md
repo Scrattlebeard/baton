@@ -215,7 +215,12 @@ lines — and the next sweep renders it via the Gemini image API
 (default `gemini-3.1-flash-lite-image`, a.k.a. Nano Banana 2 Lite;
 key from `GOOGLE_API_KEY` in `.env` or the environment). The image
 lands at the mirrored path under `illustrations/` with its brief
-beside it as provenance. Two conventions carry the weight: **briefs
+beside it as provenance. A story can ratify a **house style** —
+`illustrations/style.md`, the visual `register.md` — which is appended
+to every brief so all renders share one look; and a brief can carry
+`ref:` lines naming approved images (a cast portrait, a prior scene)
+for image-to-image consistency — a brief whose ref hasn't cleared the
+gate yet simply waits. Two conventions carry the weight: **briefs
 are player-visible, so they must be written from player-visible canon
 only** — never from `gm/`, because the pixels leak whatever the
 prompt knew — and **a rendered name is never re-rendered**, so a cast

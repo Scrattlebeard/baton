@@ -39,12 +39,16 @@ Current jobs:
   chronological order. The story repo becomes its own raw archive —
   the prose survives even if the harness's transcript files are pruned.
 - illustrator — render queued image briefs (illustrations/queue/*.md,
-  body = prompt, optional leading `aspect: 16:9` / `model: ...` lines)
-  via the Gemini image API (default model: nano-banana-2-lite /
-  gemini-3.1-flash-lite-image; key from GOOGLE_API_KEY or
-  GEMINI_API_KEY, .env supported). The image lands at the mirrored
-  path under illustrations/ and the brief moves beside it as
-  provenance. MEMBRANE RULE: briefs live in a player-visible
+  body = prompt, optional leading `aspect:` / `model:` / `style: none`
+  / `ref:` lines) via the Gemini image API (default model:
+  nano-banana-2-lite / gemini-3.1-flash-lite-image; key from
+  GOOGLE_API_KEY or GEMINI_API_KEY, .env supported). The image lands
+  at the mirrored path under illustrations/ and the brief moves beside
+  it as provenance. illustrations/style.md (the story's ratified
+  house style — the visual register.md) is appended to every brief;
+  `ref:` lines name approved images (extension optional) for
+  image-to-image consistency — a brief whose ref is still pending
+  waits in the queue. MEMBRANE RULE: briefs live in a player-visible
   namespace — write them from player-visible canon only, never from
   gm/ (the pixels leak whatever the prompt knew). A rendered name is
   never re-rendered, so cast portraits stay stable across sessions:
@@ -288,29 +292,72 @@ def load_env(story: Path) -> dict:
 
 
 def parse_brief(text: str) -> tuple[dict, str]:
-    """Leading `key: value` lines (aspect / model) are config; the rest
-    of the file is the prompt, verbatim."""
-    cfg: dict[str, str] = {}
+    """Leading `key: value` lines are config; the rest of the file is
+    the prompt, verbatim. Keys: aspect, model, style (`style: none`
+    opts this brief out of the house style), ref (repeatable — a
+    reference image path relative to illustrations/, e.g.
+    `ref: cast/the-miller`, extension optional)."""
+    cfg: dict = {"ref": []}
     lines = text.splitlines()
     i = 0
     for i, line in enumerate(lines + [""]):
-        m = re.match(r"^(aspect|model)\s*:\s*(\S+)\s*$", line.strip())
+        m = re.match(r"^(aspect|model|style|ref)\s*:\s*(.+?)\s*$", line.strip())
         if m:
-            cfg[m.group(1)] = m.group(2)
+            if m.group(1) == "ref":
+                cfg["ref"].append(m.group(2))
+            else:
+                cfg[m.group(1)] = m.group(2)
         elif line.strip():
             break
     return cfg, "\n".join(lines[i:]).strip()
 
 
+def read_house_style(story: Path) -> str:
+    """illustrations/style.md — the story's ratified visual register,
+    appended to every brief so all renders share one look. The visual
+    analog of a collaborative story's register.md."""
+    f = story / "illustrations" / "style.md"
+    return f.read_text(errors="replace").strip() if f.is_file() else ""
+
+
+def resolve_refs(story: Path, names: list[str]) -> list[Path] | None:
+    """Brief `ref:` lines → live image paths under illustrations/
+    (extensionless resolves; queue/ and pending/ never count — a ref
+    must be APPROVED canon). Returns None if any ref is missing, so
+    the brief waits in the queue until e.g. its cast portrait clears
+    the gate."""
+    root = story / "illustrations"
+    out: list[Path] = []
+    for name in names:
+        name = name.strip().lstrip("/")
+        if ".." in name or name.split("/", 1)[0] in ("queue", "pending"):
+            return None
+        p = root / name
+        cands = [p] if p.suffix else [p.with_suffix(s) for s in (".png", ".jpg")]
+        found = next((c for c in cands if c.is_file()), None)
+        if not found:
+            return None
+        out.append(found)
+    return out
+
+
+REF_MIMES = {".png": "image/png", ".jpg": "image/jpeg"}
+
+
 def render_image(prompt: str, model: str, key: str,
-                 aspect: str | None = None) -> tuple[bytes, str]:
-    """One text-to-image call against the Gemini API (stdlib urllib).
-    Returns (image bytes, mime type)."""
+                 aspect: str | None = None,
+                 refs: list[Path] | None = None) -> tuple[bytes, str]:
+    """One image call against the Gemini API (stdlib urllib), optionally
+    image-to-image with reference images. Returns (image bytes, mime)."""
     gen_cfg: dict = {"responseModalities": ["IMAGE"]}
     if aspect:
         gen_cfg["imageConfig"] = {"aspectRatio": aspect}
+    parts: list[dict] = [{"inline_data": {
+        "mime_type": REF_MIMES[r.suffix.lower()],
+        "data": base64.b64encode(r.read_bytes()).decode()}} for r in refs or []]
+    parts.append({"text": prompt})
     body = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": parts}],
         "generationConfig": gen_cfg,
     }).encode()
     req = urllib.request.Request(
@@ -366,6 +413,7 @@ def job_illustrator(story: Path, opts: dict) -> tuple[list[Path], str]:
     if not key:
         return [], f"{len(briefs)} brief(s) queued, but no GOOGLE_API_KEY/GEMINI_API_KEY"
     gated = story_is_gated(story, opts)
+    style = read_house_style(story)
     dest_root = story / "illustrations" / ("pending" if gated else "")
     rendered, failed, skipped = 0, 0, 0
     for brief in briefs:
@@ -382,9 +430,21 @@ def job_illustrator(story: Path, opts: dict) -> tuple[list[Path], str]:
                   f"({'already rendered' if existing else 'empty brief'})")
             skipped += 1
             continue
+        refs = resolve_refs(story, cfg["ref"])
+        if refs is None:
+            # a named ref isn't approved canon yet — the brief waits
+            print(f"    illustrator: waiting {rel} (ref not yet available: "
+                  f"{', '.join(cfg['ref'])})")
+            skipped += 1
+            continue
+        full_prompt = prompt
+        if style and cfg.get("style", "").lower() != "none":
+            full_prompt = f"{prompt}\n\nHouse style (applies to every " \
+                          f"illustration in this story):\n{style}"
         try:
-            data, mime = render_image(prompt, cfg.get("model", DEFAULT_IMAGE_MODEL),
-                                      key, cfg.get("aspect"))
+            data, mime = render_image(full_prompt,
+                                      cfg.get("model", DEFAULT_IMAGE_MODEL),
+                                      key, cfg.get("aspect"), refs)
         except urllib.error.HTTPError as e:
             detail = e.read().decode(errors="replace")[:300]
             print(f"    illustrator: FAILED {rel}: HTTP {e.code} {detail}")
