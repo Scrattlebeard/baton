@@ -62,8 +62,10 @@ tomorrow, without touching the server.
    `state.md` are never served; path traversal and encoded slashes are
    rejected. Images under `illustrations/` are also served (player-safe
    *by construction* — the doctrine requires image briefs to derive from
-   player-visible canon only); `illustrations/queue/` and the `.md`
-   brief files are not, and the route serves image types only.
+   player-visible canon only); `illustrations/queue/`,
+   `illustrations/pending/` (renders awaiting the GM's image/facts
+   reconciliation in gated stories), and the `.md` brief files are not,
+   and the route serves image types only.
 2. **Transcript filter.** The observer tails the Claude Code session
    JSONL and forwards **only** assistant `text` blocks (narrator prose)
    and user string messages (player turns) as story content. `thinking`,
@@ -124,7 +126,10 @@ image briefs into `illustrations/`; the observer puts them on screen:
   hasn't landed yet (queued this turn, painted between turns), the
   figure shows a hatched placeholder. When the file lands, the server
   emits an `illustration` event and the placeholder resolves in place —
-  no reload, the painting simply arrives.
+  no reload, the painting simply arrives. In a *gated* story the file
+  "lands" only when the GM approves it out of `illustrations/pending/`
+  — the placeholder machinery is unchanged; it just resolves on
+  approval instead of render.
 - **The cast panel** fills from `illustrations/cast/*`: one card per
   portrait, display name from the filename stem (`the-miller` → "The
   Miller"). Portraits are never re-rendered by the scriptorium, so a

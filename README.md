@@ -222,6 +222,20 @@ prompt knew — and **a rendered name is never re-rendered**, so a cast
 portrait (`illustrations/queue/cast/<name>.md`) is one face per
 character, generated once, stable across sessions.
 
+Renderers improvise — they add figures and details nobody briefed —
+so pixels need **image/facts reconciliation** with canon. In a **gated**
+story (the default wherever someone owns world-truth: crawler,
+rules-game) renders land in `illustrations/pending/`, which is never
+served; the GM reviews each against canon and either approves (`git
+mv` into place — the approval commit is the timestamp proof), adopts
+an unbriefed addition as real (logged to `gm/rulings.md`, sealable),
+or rejects and re-briefs. Once served, **revealed pixels are canon**:
+anything visible is fair for the player to interrogate, and "just
+illustration noise" is a legal answer only as an open, OOC last
+resort — never a reflex. Collaborative stories default to
+**freehand**: renders serve immediately and the shared pen ratifies
+or laughs at what the renderer dreamt. Full ritual: `AGENTS.md` §4.7.
+
 Planned on the same loop: a **quartermaster** (future hooks, NPCs,
 locations drafted between sessions into `gm/prep/`). Everything the
 scriptorium produces is *proposal-until-played* — the GM remains the

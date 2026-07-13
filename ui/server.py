@@ -48,10 +48,13 @@ SERVED_FILES = {"surface.md", "sheet.md", "map.md", "rolls.log", "theme.css"}
 # theme.css is looked up at <story>/ui/theme.css (a story's own skin).
 # Plus: images under <story>/illustrations/ (rendered by the scriptorium's
 # illustrator job) — player-safe BY CONSTRUCTION, because the doctrine
-# requires briefs to derive from player-visible canon only. queue/ (unrendered
-# briefs) and the .md brief files are still never served: images only.
+# requires briefs to derive from player-visible canon only. queue/
+# (unrendered briefs), pending/ (renders awaiting the GM's image/facts
+# reconciliation in gated stories), and the .md brief files are still never
+# served: approved images only.
 IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg",
                ".jpeg": "image/jpeg", ".webp": "image/webp"}
+UNSERVED_ILL = ("queue", "pending")
 
 POLL_SECONDS = 0.5
 
@@ -334,8 +337,9 @@ def read_latest_roll(story_dir: Path):
 
 
 def list_illustrations(story_dir: Path) -> dict[str, float]:
-    """Rendered images under illustrations/ as {posix relpath: mtime}.
-    queue/ (unrendered briefs) is excluded; only image files count."""
+    """Approved images under illustrations/ as {posix relpath: mtime}.
+    queue/ (unrendered briefs) and pending/ (renders awaiting GM review)
+    are excluded; only image files count."""
     root = story_dir / "illustrations"
     out: dict[str, float] = {}
     if not root.is_dir():
@@ -343,7 +347,7 @@ def list_illustrations(story_dir: Path) -> dict[str, float]:
     for p in root.rglob("*"):
         if p.is_file() and p.suffix.lower() in IMAGE_TYPES:
             rel = p.relative_to(root).as_posix()
-            if not rel.startswith("queue/"):
+            if rel.split("/", 1)[0] not in UNSERVED_ILL:
                 out[rel] = p.stat().st_mtime
     return out
 
@@ -646,14 +650,15 @@ def make_handler(story_dir: Path, bus: Bus, watcher: Watcher, inbox: Path):
 
         def _serve_illustration(self, rel: str):
             """Images under <story>/illustrations/ only — never queue/,
-            never the .md briefs. An extensionless request resolves to
-            whichever image extension exists (the GM embeds extensionless,
-            since it can't know what the renderer will produce)."""
+            never pending/ (unreviewed renders), never the .md briefs. An
+            extensionless request resolves to whichever image extension
+            exists (the GM embeds extensionless, since it can't know what
+            the renderer will produce)."""
             from urllib.parse import unquote
             rel = unquote(rel).strip("/")
             if (not rel or ".." in rel
                     or not re.fullmatch(r"[A-Za-z0-9._ \-/]+", rel)
-                    or rel.split("/", 1)[0] == "queue"):
+                    or rel.split("/", 1)[0] in UNSERVED_ILL):
                 self._send(403, "text/plain", b"forbidden"); return
             root = (story_dir / "illustrations").resolve()
             target = (root / rel).resolve()

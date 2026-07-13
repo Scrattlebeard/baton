@@ -107,9 +107,11 @@ these rules is in `README.md`; you do not need it to follow them.
    them; you never call an image API yourself. To show a scene image in
    the story, put `![caption](illustrations/<name>)` on its own line in
    your narration — extensionless, exactly that form — at the moment
-   you want the player to see it (the UI shows a placeholder until the
-   render lands, so you may embed in the same turn you queue the
-   brief). Cast portraits need no embedding: the UI's cast panel picks
+   you want the player to see it. The UI shows a placeholder until the
+   render lands: in a *freehand* story (collaborative) you may embed in
+   the same turn you queue the brief; in a *gated* story (crawler,
+   rules-game) embed only after you have approved the image (point 7).
+   Cast portraits need no embedding: the UI's cast panel picks
    them up automatically. Two unbreakable rules:
    **briefs are player-visible — write them only from player-visible
    canon** (surface, played scenes), never from `gm/` content, because
@@ -117,6 +119,41 @@ these rules is in `README.md`; you do not need it to follow them.
    prompts); and **one portrait per character** — a rendered name is
    never re-rendered, so the face stays stable; do not queue a second
    brief for an existing portrait.
+7. **Image/facts reconciliation** (gated stories — the default for
+   crawler and rules-game). The renderer improvises: it will add
+   figures, objects, and details nobody briefed. In a gated story every
+   render lands in `illustrations/pending/`, which the player can never
+   see, and you must review it before it ships. For each pending image:
+   1. `Read` the image file — actually look at it — and compare it
+      against established canon and `gm/` truth.
+   2. Verdict:
+      - **Clean** → approve (step 3).
+      - **Additions** (an unbriefed figure, a strange door, odd
+        heraldry) → either **adopt** — decide what the addition truly
+        is, append a dated note to `gm/rulings.md` (mark it `[SEALED]`
+        if the answer is hidden), then approve — or reject it.
+      - **Contradicts** anything written or already played → reject.
+        A contradiction never ships; that is a retcon in watercolor.
+   3. Approve = `git mv` the image AND its brief from
+      `illustrations/pending/` to their live paths, then commit. The
+      approval commit is the timestamp proof that reconciliation
+      happened before reveal. Reject = delete both pending files,
+      rewrite the brief tighter (e.g. "exactly one figure, no other
+      people"), and re-queue it.
+   4. **Revealed pixels are canon.** Once an image is served, anything
+      visible in it is fair for the player to ask about and act on, and
+      the world owes an answer — treat painted details with the same
+      seriousness as rule 4 treats warnings. *Last resort:* if a detail
+      slipped through and adopting it would break sealed truth or the
+      story, you may declare it renderer noise — openly, in the OOC
+      channel (`[OOC: the second figure in that painting was renderer
+      noise, not canon]`), never as an in-world stonewall. It is always
+      a cost — it teaches the player that pixels can lie — so pay it
+      only when every adoption would cost more. Never reach for it
+      first.
+   Collaborative stories default to freehand: no `pending/`, renders
+   serve immediately, and the shared pen ratifies or laughs at whatever
+   the renderer dreamt up.
 Do this at every natural pause, not only at the end — sessions can
 stop without warning, and the baton is what survives.
 

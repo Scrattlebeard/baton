@@ -49,6 +49,14 @@ Current jobs:
   gm/ (the pixels leak whatever the prompt knew). A rendered name is
   never re-rendered, so cast portraits stay stable across sessions:
   one face per character, generated once, reused.
+  GATING (image/facts reconciliation): renderers improvise — they add
+  figures, doors, heraldry nobody briefed. In a gated story (crawler /
+  rules-game by default, or --gated) renders land in
+  illustrations/pending/, which is never served; the GM reviews each
+  against canon and approves (git mv into place), adopts additions
+  (logged to gm/rulings.md), or rejects and re-briefs. Collaborative
+  stories default to freehand (--freehand): renders serve immediately
+  and the shared pen ratifies or laughs. Doctrine: AGENTS.md §4.7.
 
 Stdlib only, like everything else here.
 """
@@ -148,7 +156,7 @@ def commit_paths(story: Path, paths: list[Path], msg: str) -> bool:
 
 # ------------------------------------------------------------------ jobs
 
-def job_archivist(story: Path) -> tuple[list[Path], str]:
+def job_archivist(story: Path, opts: dict) -> tuple[list[Path], str]:
     """Regenerate archive/sessions/ from the harness transcripts.
     Idempotent: files are rewritten only when their content changed."""
     outdir = story / "archive" / "sessions"
@@ -255,14 +263,36 @@ def render_image(prompt: str, model: str, key: str,
     raise RuntimeError("no image in response: " + json.dumps(resp)[:400])
 
 
-def job_illustrator(story: Path) -> tuple[list[Path], str]:
+def story_is_gated(story: Path, opts: dict) -> bool:
+    """Gated = renders land in illustrations/pending/ (not served) until
+    the GM reviews them against canon and approves (git mv into place).
+    Default follows who owns world-truth: only `collaborative` stories
+    (shared pen — a wild render is just another suggestion to ratify)
+    run freehand; crawler / rules-game / unknown are gated. CLI
+    --gated/--freehand overrides."""
+    if opts.get("gate") is not None:
+        return opts["gate"]
+    st = story / "state.md"
+    kind = ""
+    if st.is_file():
+        m = re.search(r"^\*\*Kind:\*\*\s*(.+)$",
+                      st.read_text(errors="replace"), re.M)
+        if m:
+            kind = m.group(1).strip().lower()
+    return kind != "collaborative"
+
+
+def job_illustrator(story: Path, opts: dict) -> tuple[list[Path], str]:
     """Render queued image briefs. A brief is a markdown file at
     illustrations/queue/<path>.md whose body is the prompt (optional
-    leading `aspect: 16:9` / `model: ...` lines). The image lands at
-    illustrations/<path>.png|.jpg and the brief moves beside it as
-    provenance. Failures leave the brief queued for the next sweep.
-    An already-rendered name is never re-rendered (cast portraits stay
-    stable): re-queue deliberately by deleting the image first."""
+    leading `aspect: 16:9` / `model: ...` lines). The rendered image
+    lands at illustrations/<path>.png|.jpg — or, in a GATED story, at
+    illustrations/pending/<path>.png|.jpg to await the GM's
+    image/facts reconciliation (see AGENTS.md) — with the brief moved
+    beside it as provenance. Failures leave the brief queued for the
+    next sweep. An already-rendered name (live OR pending) is never
+    re-rendered, so cast portraits stay stable: re-render deliberately
+    by deleting the image first."""
     queue = story / "illustrations" / "queue"
     briefs = [p for p in sorted(queue.rglob("*.md"))] if queue.is_dir() else []
     if not briefs:
@@ -271,13 +301,18 @@ def job_illustrator(story: Path) -> tuple[list[Path], str]:
     key = env.get("GOOGLE_API_KEY") or env.get("GEMINI_API_KEY")
     if not key:
         return [], f"{len(briefs)} brief(s) queued, but no GOOGLE_API_KEY/GEMINI_API_KEY"
+    gated = story_is_gated(story, opts)
+    dest_root = story / "illustrations" / ("pending" if gated else "")
     rendered, failed, skipped = 0, 0, 0
     for brief in briefs:
         rel = brief.relative_to(queue)
-        dest_md = story / "illustrations" / rel
+        dest_md = dest_root / rel
         cfg, prompt = parse_brief(brief.read_text(errors="replace"))
-        existing = [dest_md.with_suffix(s) for s in (".png", ".jpg")
-                    if dest_md.with_suffix(s).exists()]
+        existing = [base.with_suffix(s)
+                    for base in (story / "illustrations" / rel,
+                                 story / "illustrations" / "pending" / rel)
+                    for s in (".png", ".jpg")
+                    if base.with_suffix(s).exists()]
         if not prompt or existing:
             print(f"    illustrator: skip {rel} "
                   f"({'already rendered' if existing else 'empty brief'})")
@@ -301,9 +336,11 @@ def job_illustrator(story: Path) -> tuple[list[Path], str]:
         dest_md.write_text(brief.read_text(errors="replace"))
         brief.unlink()  # brief now lives beside its image as provenance
         print(f"    illustrator: rendered {dest.relative_to(story)} "
-              f"({len(data) // 1024} KB)")
+              f"({len(data) // 1024} KB)"
+              + ("  [pending GM review]" if gated else ""))
         rendered += 1
-    note = f"rendered {rendered}, failed {failed}, skipped {skipped}"
+    note = (f"rendered {rendered}{' to pending/' if gated and rendered else ''}, "
+            f"failed {failed}, skipped {skipped}")
     # One pathspec covers renders, moved briefs, AND queue deletions.
     return ([story / "illustrations"] if rendered or skipped else []), note
 
@@ -316,9 +353,9 @@ JOBS = {
 
 # ------------------------------------------------------------------ main
 
-def sweep(story: Path, jobs: list[str]) -> None:
+def sweep(story: Path, jobs: list[str], opts: dict) -> None:
     for name in jobs:
-        changed, note = JOBS[name](story)
+        changed, note = JOBS[name](story, opts)
         if changed and commit_paths(
                 story, changed,
                 f"scriptorium: {name} — {note}"):
@@ -337,6 +374,13 @@ def main() -> None:
     ap.add_argument("--interval", type=float, default=300.0,
                     help="seconds between sweeps (default 300)")
     ap.add_argument("--once", action="store_true", help="one sweep, then exit")
+    gate = ap.add_mutually_exclusive_group()
+    gate.add_argument("--gated", dest="gate", action="store_true", default=None,
+                      help="force renders into illustrations/pending/ for GM "
+                           "review (default for crawler / rules-game stories)")
+    gate.add_argument("--freehand", dest="gate", action="store_false",
+                      help="serve renders immediately, no review "
+                           "(default for collaborative stories)")
     args = ap.parse_args()
 
     story = Path(args.story).resolve()
@@ -348,14 +392,17 @@ def main() -> None:
         raise SystemExit(f"unknown job(s): {', '.join(unknown)} "
                          f"(available: {', '.join(JOBS)})")
 
-    print(f"Baton scriptorium  ·  story: {story.name}  ·  jobs: {', '.join(jobs)}")
+    opts = {"gate": args.gate}
+    mode = "gated" if story_is_gated(story, opts) else "freehand"
+    print(f"Baton scriptorium  ·  story: {story.name}  ·  jobs: {', '.join(jobs)}"
+          f"  ·  illustrations: {mode}")
     if args.once:
-        sweep(story, jobs)
+        sweep(story, jobs, opts)
         return
     print(f"  sweeping every {args.interval:g}s  (Ctrl-C to stop)")
     try:
         while True:
-            sweep(story, jobs)
+            sweep(story, jobs, opts)
             time.sleep(args.interval)
     except KeyboardInterrupt:
         print("\nbye")
